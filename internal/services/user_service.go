@@ -13,7 +13,6 @@ import (
 	"github.com/google/uuid"
 )
 
-
 // userService реализация UserService
 type userService struct {
 	userRepo        repositories.UserRepository
@@ -49,9 +48,12 @@ func (s *userService) CreateOrGetUser(telegramID int64, username, firstName, las
 		user.UpdatedAt = time.Now()
 
 		// Проверяем, является ли пользователь админом по конфигурации
-		if s.config.Admin.TelegramID != 0 && s.config.Admin.TelegramID == telegramID {
-			user.IsAdmin = true
-			s.logger.Info("User promoted to admin by config", "telegram_id", telegramID)
+		for _, adminID := range s.config.Admin.TelegramIDs {
+			if adminID == telegramID {
+				user.IsAdmin = true
+				s.logger.Info("User promoted to admin by config", "telegram_id", telegramID)
+				break
+			}
 		}
 
 		if err := s.userRepo.Update(user); err != nil {
@@ -63,9 +65,12 @@ func (s *userService) CreateOrGetUser(telegramID int64, username, firstName, las
 
 	// Создаем нового пользователя
 	isAdmin := false
-	if s.config.Admin.TelegramID != 0 && s.config.Admin.TelegramID == telegramID {
-		isAdmin = true
-		s.logger.Info("New user created as admin by config", "telegram_id", telegramID)
+	for _, adminID := range s.config.Admin.TelegramIDs {
+		if adminID == telegramID {
+			isAdmin = true
+			s.logger.Info("New user created as admin by config", "telegram_id", telegramID)
+			break
+		}
 	}
 
 	user = &models.User{
@@ -230,15 +235,16 @@ func (s *userService) SearchUsers(query string, limit int) ([]models.User, error
 // IsAdmin проверяет, является ли пользователь администратором
 func (s *userService) IsAdmin(telegramID int64) bool {
 	// Добавляем отладочную информацию
-	s.logger.Info("Checking admin rights", 
-		"telegram_id", telegramID, 
-		"admin_telegram_id", s.config.Admin.TelegramID,
-		"admin_telegram_id_zero", s.config.Admin.TelegramID == 0)
+	s.logger.Info("Checking admin rights",
+		"telegram_id", telegramID,
+		"admin_telegram_ids", s.config.Admin.TelegramIDs)
 
-	// Сначала проверяем ADMIN_TELEGRAM_ID из конфигурации
-	if s.config.Admin.TelegramID != 0 && s.config.Admin.TelegramID == telegramID {
-		s.logger.Info("User is admin by config", "telegram_id", telegramID)
-		return true
+	// Сначала проверяем ADMIN_TELEGRAM_IDS из конфигурации
+	for _, adminID := range s.config.Admin.TelegramIDs {
+		if adminID == telegramID {
+			s.logger.Info("User is admin by config", "telegram_id", telegramID)
+			return true
+		}
 	}
 
 	// Затем проверяем поле IsAdmin в базе данных
@@ -247,7 +253,7 @@ func (s *userService) IsAdmin(telegramID int64) bool {
 		s.logger.Info("User not found in database", "telegram_id", telegramID, "error", err)
 		return false
 	}
-	
+
 	s.logger.Info("User admin status from DB", "telegram_id", telegramID, "is_admin", user.IsAdmin)
 	return user.IsAdmin
 }

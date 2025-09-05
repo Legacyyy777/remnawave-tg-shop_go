@@ -9,24 +9,13 @@ import (
 	"gorm.io/gorm"
 )
 
-// UserRepository интерфейс для работы с пользователями
-type UserRepository interface {
-	Create(user *models.User) error
-	GetByID(id uuid.UUID) (*models.User, error)
-	GetByTelegramID(telegramID int64) (*models.User, error)
-	GetByReferralCode(code string) (*models.User, error)
-	Update(user *models.User) error
-	Delete(id uuid.UUID) error
-	List(limit, offset int) ([]models.User, error)
-	GetReferrals(userID uuid.UUID) ([]models.User, error)
-	GetByUsername(username string) (*models.User, error)
-	Search(query string, limit int) ([]models.User, error)
-}
-
 // userRepository реализация UserRepository
 type userRepository struct {
 	db *gorm.DB
 }
+
+// Убеждаемся, что userRepository реализует UserRepository
+var _ UserRepository = (*userRepository)(nil)
 
 // NewUserRepository создает новый репозиторий пользователей
 func NewUserRepository(db *gorm.DB) UserRepository {
@@ -127,13 +116,32 @@ func (r *userRepository) GetByUsername(username string) (*models.User, error) {
 func (r *userRepository) Search(query string, limit int) ([]models.User, error) {
 	var users []models.User
 	searchPattern := "%" + query + "%"
-	
+
 	if err := r.db.Where(
 		"username ILIKE ? OR first_name ILIKE ? OR last_name ILIKE ?",
 		searchPattern, searchPattern, searchPattern,
 	).Limit(limit).Find(&users).Error; err != nil {
 		return nil, fmt.Errorf("failed to search users: %w", err)
 	}
-	
+
+	return users, nil
+}
+
+// GetAll получает всех пользователей
+func (r *userRepository) GetAll(limit, offset int) ([]models.User, error) {
+	var users []models.User
+	query := r.db.Order("created_at DESC")
+
+	if limit > 0 {
+		query = query.Limit(limit)
+	}
+	if offset > 0 {
+		query = query.Offset(offset)
+	}
+
+	if err := query.Find(&users).Error; err != nil {
+		return nil, fmt.Errorf("failed to get all users: %w", err)
+	}
+
 	return users, nil
 }

@@ -4,6 +4,8 @@ import (
 	"testing"
 	"time"
 
+	"remnawave-tg-shop/internal/config"
+	"remnawave-tg-shop/internal/logger"
 	"remnawave-tg-shop/internal/models"
 	"remnawave-tg-shop/internal/services/remnawave"
 
@@ -76,6 +78,11 @@ func (m *MockUserRepository) Search(query string, limit int) ([]models.User, err
 	return args.Get(0).([]models.User), args.Error(1)
 }
 
+func (m *MockUserRepository) GetAll(limit, offset int) ([]models.User, error) {
+	args := m.Called(limit, offset)
+	return args.Get(0).([]models.User), args.Error(1)
+}
+
 // MockLogger мок для Logger
 type MockLogger struct {
 	mock.Mock
@@ -86,7 +93,7 @@ func (m *MockLogger) Debug(args ...interface{}) {
 }
 
 func (m *MockLogger) Debugf(format string, args ...interface{}) {
-	m.Called(format, args...)
+	m.Called(append([]interface{}{format}, args...)...)
 }
 
 func (m *MockLogger) Info(args ...interface{}) {
@@ -94,7 +101,7 @@ func (m *MockLogger) Info(args ...interface{}) {
 }
 
 func (m *MockLogger) Infof(format string, args ...interface{}) {
-	m.Called(format, args...)
+	m.Called(append([]interface{}{format}, args...)...)
 }
 
 func (m *MockLogger) Warn(args ...interface{}) {
@@ -102,7 +109,7 @@ func (m *MockLogger) Warn(args ...interface{}) {
 }
 
 func (m *MockLogger) Warnf(format string, args ...interface{}) {
-	m.Called(format, args...)
+	m.Called(append([]interface{}{format}, args...)...)
 }
 
 func (m *MockLogger) Error(args ...interface{}) {
@@ -110,7 +117,7 @@ func (m *MockLogger) Error(args ...interface{}) {
 }
 
 func (m *MockLogger) Errorf(format string, args ...interface{}) {
-	m.Called(format, args...)
+	m.Called(append([]interface{}{format}, args...)...)
 }
 
 func (m *MockLogger) Fatal(args ...interface{}) {
@@ -118,26 +125,27 @@ func (m *MockLogger) Fatal(args ...interface{}) {
 }
 
 func (m *MockLogger) Fatalf(format string, args ...interface{}) {
-	m.Called(format, args...)
+	m.Called(append([]interface{}{format}, args...)...)
 }
 
-func (m *MockLogger) WithField(key string, value interface{}) Logger {
+func (m *MockLogger) WithField(key string, value interface{}) logger.Logger {
 	args := m.Called(key, value)
-	return args.Get(0).(Logger)
+	return args.Get(0).(logger.Logger)
 }
 
-func (m *MockLogger) WithFields(fields map[string]interface{}) Logger {
+func (m *MockLogger) WithFields(fields map[string]interface{}) logger.Logger {
 	args := m.Called(fields)
-	return args.Get(0).(Logger)
+	return args.Get(0).(logger.Logger)
 }
 
 func TestUserService_CreateOrGetUser_NewUser(t *testing.T) {
 	// Arrange
 	mockRepo := new(MockUserRepository)
 	mockLogger := new(MockLogger)
+	mockConfig := &config.Config{}
 	mockRemnawaveClient := &remnawave.Client{} // В реальном тесте можно создать мок
 
-	service := NewUserService(mockRepo, mockRemnawaveClient, mockLogger)
+	service := NewUserService(mockRepo, mockRemnawaveClient, mockLogger, mockConfig)
 
 	telegramID := int64(123456789)
 	username := "testuser"
@@ -177,9 +185,10 @@ func TestUserService_CreateOrGetUser_ExistingUser(t *testing.T) {
 	// Arrange
 	mockRepo := new(MockUserRepository)
 	mockLogger := new(MockLogger)
+	mockConfig := &config.Config{}
 	mockRemnawaveClient := &remnawave.Client{}
 
-	service := NewUserService(mockRepo, mockRemnawaveClient, mockLogger)
+	service := NewUserService(mockRepo, mockRemnawaveClient, mockLogger, mockConfig)
 
 	telegramID := int64(123456789)
 	username := "testuser"
@@ -214,11 +223,11 @@ func TestUserService_CreateOrGetUser_ExistingUser(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, user)
 	assert.Equal(t, telegramID, user.TelegramID)
-	assert.Equal(t, username, user.Username) // Обновлено
-	assert.Equal(t, firstName, user.FirstName) // Обновлено
-	assert.Equal(t, lastName, user.LastName) // Обновлено
+	assert.Equal(t, username, user.Username)         // Обновлено
+	assert.Equal(t, firstName, user.FirstName)       // Обновлено
+	assert.Equal(t, lastName, user.LastName)         // Обновлено
 	assert.Equal(t, languageCode, user.LanguageCode) // Обновлено
-	assert.Equal(t, 100.0, user.Balance) // Сохранено
+	assert.Equal(t, 100.0, user.Balance)             // Сохранено
 
 	mockRepo.AssertExpectations(t)
 }
@@ -227,9 +236,10 @@ func TestUserService_AddBalance(t *testing.T) {
 	// Arrange
 	mockRepo := new(MockUserRepository)
 	mockLogger := new(MockLogger)
+	mockConfig := &config.Config{}
 	mockRemnawaveClient := &remnawave.Client{}
 
-	service := NewUserService(mockRepo, mockRemnawaveClient, mockLogger)
+	service := NewUserService(mockRepo, mockRemnawaveClient, mockLogger, mockConfig)
 
 	userID := uuid.New()
 	amount := 50.0
@@ -264,9 +274,10 @@ func TestUserService_SubtractBalance_InsufficientBalance(t *testing.T) {
 	// Arrange
 	mockRepo := new(MockUserRepository)
 	mockLogger := new(MockLogger)
+	mockConfig := &config.Config{}
 	mockRemnawaveClient := &remnawave.Client{}
 
-	service := NewUserService(mockRepo, mockRemnawaveClient, mockLogger)
+	service := NewUserService(mockRepo, mockRemnawaveClient, mockLogger, mockConfig)
 
 	userID := uuid.New()
 	amount := 150.0
@@ -295,9 +306,10 @@ func TestUserService_IsAdmin(t *testing.T) {
 	// Arrange
 	mockRepo := new(MockUserRepository)
 	mockLogger := new(MockLogger)
+	mockConfig := &config.Config{}
 	mockRemnawaveClient := &remnawave.Client{}
 
-	service := NewUserService(mockRepo, mockRemnawaveClient, mockLogger)
+	service := NewUserService(mockRepo, mockRemnawaveClient, mockLogger, mockConfig)
 
 	telegramID := int64(123456789)
 

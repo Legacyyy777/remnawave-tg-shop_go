@@ -14,11 +14,12 @@ import (
 	"remnawave-tg-shop/internal/database"
 	"remnawave-tg-shop/internal/logger"
 
-	"github.com/gin-gonic/gin"
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"remnawave-tg-shop/internal/repositories"
 	"remnawave-tg-shop/internal/services"
 	"remnawave-tg-shop/internal/services/remnawave"
+
+	"github.com/gin-gonic/gin"
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
 // App представляет основное приложение
@@ -51,6 +52,9 @@ func (a *App) Run() error {
 	userRepo := repositories.NewUserRepository(db.DB)
 	subscriptionRepo := repositories.NewSubscriptionRepository(db.DB)
 	paymentRepo := repositories.NewPaymentRepository(db.DB)
+	promoCodeRepo := repositories.NewPromoCodeRepository(db.DB)
+	notificationRepo := repositories.NewNotificationRepository(db.DB)
+	activityLogRepo := repositories.NewActivityLogRepository(db.DB)
 
 	// Создаем клиент Remnawave
 	remnawaveClient := remnawave.NewClient(
@@ -63,9 +67,12 @@ func (a *App) Run() error {
 	userService := services.NewUserService(userRepo, remnawaveClient, a.logger, a.config)
 	subscriptionService := services.NewSubscriptionService(subscriptionRepo, remnawaveClient, a.logger)
 	paymentService := services.NewPaymentService(paymentRepo, userService, a.logger)
+	promoCodeService := services.NewPromoCodeService(promoCodeRepo, a.config)
+	notificationService := services.NewNotificationService(notificationRepo, userRepo, subscriptionRepo, a.config)
+	activityLogService := services.NewActivityLogService(activityLogRepo, a.config)
 
 	// Создаем бота
-	telegramBot, err := bot.NewBot(a.config, a.logger, userService, subscriptionService, paymentService)
+	telegramBot, err := bot.NewBot(a.config, a.logger, userService, subscriptionService, paymentService, promoCodeService, notificationService, activityLogService)
 	if err != nil {
 		return fmt.Errorf("failed to create bot: %w", err)
 	}
@@ -173,28 +180,28 @@ func (a *App) handleTelegramWebhook(c *gin.Context) {
 // handleTributeWebhook обрабатывает webhook от Tribute
 func (a *App) handleTributeWebhook(c *gin.Context) {
 	a.logger.Info("Received Tribute webhook")
-	
+
 	// Здесь должна быть обработка webhook'а от Tribute
 	// Пример структуры данных от Tribute:
 	/*
-	var tributeData struct {
-		TransactionID string  `json:"transaction_id"`
-		Amount        float64 `json:"amount"`
-		Currency      string  `json:"currency"`
-		Status        string  `json:"status"`
-		UserID        string  `json:"user_id"`
-	}
-	
-	if err := c.ShouldBindJSON(&tributeData); err != nil {
-		a.logger.Error("Failed to parse Tribute webhook", "error", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON"})
-		return
-	}
-	
-	// Обработка платежа
-	// a.paymentService.ProcessTributeWebhook(tributeData)
+		var tributeData struct {
+			TransactionID string  `json:"transaction_id"`
+			Amount        float64 `json:"amount"`
+			Currency      string  `json:"currency"`
+			Status        string  `json:"status"`
+			UserID        string  `json:"user_id"`
+		}
+
+		if err := c.ShouldBindJSON(&tributeData); err != nil {
+			a.logger.Error("Failed to parse Tribute webhook", "error", err)
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON"})
+			return
+		}
+
+		// Обработка платежа
+		// a.paymentService.ProcessTributeWebhook(tributeData)
 	*/
-	
+
 	// Пока что просто возвращаем OK
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }
@@ -202,34 +209,34 @@ func (a *App) handleTributeWebhook(c *gin.Context) {
 // handleYooKassaWebhook обрабатывает webhook от ЮKassa
 func (a *App) handleYooKassaWebhook(c *gin.Context) {
 	a.logger.Info("Received YooKassa webhook")
-	
+
 	// Здесь должна быть обработка webhook'а от ЮKassa
 	// Пример структуры данных от ЮKassa:
 	/*
-	var yookassaData struct {
-		Type   string `json:"type"`
-		Event  string `json:"event"`
-		Object struct {
-			ID     string `json:"id"`
-			Status string `json:"status"`
-			Amount struct {
-				Value    string `json:"value"`
-				Currency string `json:"currency"`
-			} `json:"amount"`
-			Metadata map[string]string `json:"metadata"`
-		} `json:"object"`
-	}
-	
-	if err := c.ShouldBindJSON(&yookassaData); err != nil {
-		a.logger.Error("Failed to parse YooKassa webhook", "error", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON"})
-		return
-	}
-	
-	// Обработка платежа
-	// a.paymentService.ProcessYooKassaWebhook(yookassaData)
+		var yookassaData struct {
+			Type   string `json:"type"`
+			Event  string `json:"event"`
+			Object struct {
+				ID     string `json:"id"`
+				Status string `json:"status"`
+				Amount struct {
+					Value    string `json:"value"`
+					Currency string `json:"currency"`
+				} `json:"amount"`
+				Metadata map[string]string `json:"metadata"`
+			} `json:"object"`
+		}
+
+		if err := c.ShouldBindJSON(&yookassaData); err != nil {
+			a.logger.Error("Failed to parse YooKassa webhook", "error", err)
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON"})
+			return
+		}
+
+		// Обработка платежа
+		// a.paymentService.ProcessYooKassaWebhook(yookassaData)
 	*/
-	
+
 	// Пока что просто возвращаем OK
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }

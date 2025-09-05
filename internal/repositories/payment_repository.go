@@ -2,26 +2,13 @@ package repositories
 
 import (
 	"fmt"
+	"time"
 
 	"remnawave-tg-shop/internal/models"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
-
-// PaymentRepository интерфейс для работы с платежами
-type PaymentRepository interface {
-	Create(payment *models.Payment) error
-	GetByID(id uuid.UUID) (*models.Payment, error)
-	GetByUserID(userID uuid.UUID) ([]models.Payment, error)
-	GetByExternalID(externalID string) (*models.Payment, error)
-	Update(payment *models.Payment) error
-	Delete(id uuid.UUID) error
-	List(limit, offset int) ([]models.Payment, error)
-	GetByStatus(status string) ([]models.Payment, error)
-	GetByPaymentMethod(method string) ([]models.Payment, error)
-	GetCompletedPayments() ([]models.Payment, error)
-}
 
 // paymentRepository реализация PaymentRepository
 type paymentRepository struct {
@@ -108,8 +95,8 @@ func (r *paymentRepository) GetByStatus(status string) ([]models.Payment, error)
 	return payments, nil
 }
 
-// GetByPaymentMethod получает платежи по способу оплаты
-func (r *paymentRepository) GetByPaymentMethod(method string) ([]models.Payment, error) {
+// GetByMethod получает платежи по способу оплаты
+func (r *paymentRepository) GetByMethod(method string) ([]models.Payment, error) {
 	var payments []models.Payment
 	if err := r.db.Where("payment_method = ?", method).Find(&payments).Error; err != nil {
 		return nil, fmt.Errorf("failed to get payments by method: %w", err)
@@ -122,6 +109,15 @@ func (r *paymentRepository) GetCompletedPayments() ([]models.Payment, error) {
 	var payments []models.Payment
 	if err := r.db.Where("status = ?", "completed").Find(&payments).Error; err != nil {
 		return nil, fmt.Errorf("failed to get completed payments: %w", err)
+	}
+	return payments, nil
+}
+
+// GetByDateRange получает платежи за определенный период
+func (r *paymentRepository) GetByDateRange(startDate, endDate time.Time) ([]models.Payment, error) {
+	var payments []models.Payment
+	if err := r.db.Where("created_at BETWEEN ? AND ?", startDate, endDate).Find(&payments).Error; err != nil {
+		return nil, fmt.Errorf("failed to get payments by date range: %w", err)
 	}
 	return payments, nil
 }

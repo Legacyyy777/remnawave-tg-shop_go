@@ -10,26 +10,13 @@ import (
 	"gorm.io/gorm"
 )
 
-// SubscriptionRepository интерфейс для работы с подписками
-type SubscriptionRepository interface {
-	Create(subscription *models.Subscription) error
-	GetByID(id uuid.UUID) (*models.Subscription, error)
-	GetByUserID(userID uuid.UUID) ([]models.Subscription, error)
-	GetActiveByUserID(userID uuid.UUID) ([]models.Subscription, error)
-	Update(subscription *models.Subscription) error
-	Delete(id uuid.UUID) error
-	List(limit, offset int) ([]models.Subscription, error)
-	GetExpired() ([]models.Subscription, error)
-	GetByStatus(status string) ([]models.Subscription, error)
-	GetByServerID(serverID int) ([]models.Subscription, error)
-	GetByPlanID(planID int) ([]models.Subscription, error)
-	GetExpiringSoon(days int) ([]models.Subscription, error)
-}
-
 // subscriptionRepository реализация SubscriptionRepository
 type subscriptionRepository struct {
 	db *gorm.DB
 }
+
+// Убеждаемся, что subscriptionRepository реализует SubscriptionRepository
+var _ SubscriptionRepository = (*subscriptionRepository)(nil)
 
 // NewSubscriptionRepository создает новый репозиторий подписок
 func NewSubscriptionRepository(db *gorm.DB) SubscriptionRepository {
@@ -68,7 +55,7 @@ func (r *subscriptionRepository) GetByUserID(userID uuid.UUID) ([]models.Subscri
 // GetActiveByUserID получает активные подписки пользователя
 func (r *subscriptionRepository) GetActiveByUserID(userID uuid.UUID) ([]models.Subscription, error) {
 	var subscriptions []models.Subscription
-	if err := r.db.Where("user_id = ? AND status = ? AND expires_at > ?", 
+	if err := r.db.Where("user_id = ? AND status = ? AND expires_at > ?",
 		userID, "active", time.Now()).Order("created_at DESC").Find(&subscriptions).Error; err != nil {
 		return nil, fmt.Errorf("failed to get active subscriptions by user ID: %w", err)
 	}
@@ -109,41 +96,34 @@ func (r *subscriptionRepository) GetExpired() ([]models.Subscription, error) {
 	return subscriptions, nil
 }
 
-// GetByStatus получает подписки по статусу
-func (r *subscriptionRepository) GetByStatus(status string) ([]models.Subscription, error) {
-	var subscriptions []models.Subscription
-	if err := r.db.Where("status = ?", status).Find(&subscriptions).Error; err != nil {
-		return nil, fmt.Errorf("failed to get subscriptions by status: %w", err)
-	}
-	return subscriptions, nil
-}
-
-// GetByServerID получает подписки по ID сервера
-func (r *subscriptionRepository) GetByServerID(serverID int) ([]models.Subscription, error) {
-	var subscriptions []models.Subscription
-	if err := r.db.Where("server_id = ?", serverID).Find(&subscriptions).Error; err != nil {
-		return nil, fmt.Errorf("failed to get subscriptions by server ID: %w", err)
-	}
-	return subscriptions, nil
-}
-
-// GetByPlanID получает подписки по ID плана
-func (r *subscriptionRepository) GetByPlanID(planID int) ([]models.Subscription, error) {
-	var subscriptions []models.Subscription
-	if err := r.db.Where("plan_id = ?", planID).Find(&subscriptions).Error; err != nil {
-		return nil, fmt.Errorf("failed to get subscriptions by plan ID: %w", err)
-	}
-	return subscriptions, nil
-}
-
 // GetExpiringSoon получает подписки, истекающие в ближайшие дни
 func (r *subscriptionRepository) GetExpiringSoon(days int) ([]models.Subscription, error) {
 	var subscriptions []models.Subscription
 	expiryDate := time.Now().AddDate(0, 0, days)
-	
-	if err := r.db.Where("expires_at BETWEEN ? AND ? AND status = ?", 
+
+	if err := r.db.Where("expires_at BETWEEN ? AND ? AND status = ?",
 		time.Now(), expiryDate, "active").Find(&subscriptions).Error; err != nil {
 		return nil, fmt.Errorf("failed to get expiring subscriptions: %w", err)
 	}
 	return subscriptions, nil
+}
+
+// GetUsersWithActiveSubscriptions получает пользователей с активными подписками
+func (r *subscriptionRepository) GetUsersWithActiveSubscriptions() ([]models.User, error) {
+	var users []models.User
+	err := r.db.Joins("JOIN subscriptions ON users.id = subscriptions.user_id").
+		Where("subscriptions.status = ? AND subscriptions.expires_at > ?", "active", time.Now()).
+		Group("users.id").
+		Find(&users).Error
+	return users, err
+}
+
+// GetUsersWithExpiredSubscriptions получает пользователей с истекшими подписками
+func (r *subscriptionRepository) GetUsersWithExpiredSubscriptions() ([]models.User, error) {
+	var users []models.User
+	err := r.db.Joins("JOIN subscriptions ON users.id = subscriptions.user_id").
+		Where("subscriptions.status = ? AND subscriptions.expires_at <= ?", "active", time.Now()).
+		Group("users.id").
+		Find(&users).Error
+	return users, err
 }

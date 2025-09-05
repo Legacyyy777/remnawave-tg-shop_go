@@ -2,6 +2,7 @@ package bot
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"remnawave-tg-shop/internal/bot/handlers/callbacks"
@@ -14,8 +15,8 @@ import (
 	"remnawave-tg-shop/internal/models"
 	"remnawave-tg-shop/internal/services"
 
-	"gopkg.in/telebot.v3"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"gopkg.in/telebot.v3"
 )
 
 // Bot представляет телеграм-бота
@@ -26,23 +27,25 @@ type Bot struct {
 	userService         services.UserService
 	subscriptionService services.SubscriptionService
 	paymentService      services.PaymentService
-	
+
 	// Обработчики команд
 	startHandler *commands.StartHandler
 	helpHandler  *commands.HelpHandler
-	
+	adminHandler *commands.AdminHandler
+
 	// Обработчики callback'ов
-	balanceHandler *callbacks.BalanceHandler
-	
+	balanceHandler   *callbacks.BalanceHandler
+	promoCodeHandler *callbacks.PromoCodeHandler
+
 	// Обработчики сообщений
 	textHandler *messages.TextHandler
-	
+
 	// Middleware
 	authMiddleware *middleware.AuthMiddleware
 }
 
 // NewBot создает нового бота
-func NewBot(cfg *config.Config, log logger.Logger, userService services.UserService, subscriptionService services.SubscriptionService, paymentService services.PaymentService) (*Bot, error) {
+func NewBot(cfg *config.Config, log logger.Logger, userService services.UserService, subscriptionService services.SubscriptionService, paymentService services.PaymentService, promoCodeService services.IPromoCodeService, notificationService services.INotificationService, activityLogService services.IActivityLogService) (*Bot, error) {
 	pref := telebot.Settings{
 		Token: cfg.BotToken,
 		// Используем Long Polling для простоты
@@ -57,7 +60,9 @@ func NewBot(cfg *config.Config, log logger.Logger, userService services.UserServ
 	// Создаем обработчики
 	startHandler := commands.NewStartHandler(cfg, userService, subscriptionService)
 	helpHandler := commands.NewHelpHandler(cfg)
+	adminHandler := commands.NewAdminHandler(cfg, userService, subscriptionService, paymentService, promoCodeService, notificationService, activityLogService)
 	balanceHandler := callbacks.NewBalanceHandler(cfg, userService)
+	promoCodeHandler := callbacks.NewPromoCodeHandler(cfg, userService, promoCodeService, activityLogService)
 	textHandler := messages.NewTextHandler(cfg)
 	authMiddleware := middleware.NewAuthMiddleware(userService, log)
 
@@ -70,7 +75,9 @@ func NewBot(cfg *config.Config, log logger.Logger, userService services.UserServ
 		paymentService:      paymentService,
 		startHandler:        startHandler,
 		helpHandler:         helpHandler,
+		adminHandler:        adminHandler,
 		balanceHandler:      balanceHandler,
+		promoCodeHandler:    promoCodeHandler,
 		textHandler:         textHandler,
 		authMiddleware:      authMiddleware,
 	}
@@ -101,46 +108,51 @@ func (b *Bot) HandleUpdate(update interface{}) error {
 // processUpdate обрабатывает обновление
 func (b *Bot) processUpdate(update tgbotapi.Update) error {
 	b.logger.Info("Processing update", "update_id", update.UpdateID)
-	
+
 	// Обрабатываем сообщения
 	if update.Message != nil {
 		return b.handleMessage(update.Message)
 	}
-	
+
 	// Обрабатываем callback queries
 	if update.CallbackQuery != nil {
 		return b.handleCallbackQuery(update.CallbackQuery)
 	}
-	
+
 	return nil
 }
 
 // handleMessage обрабатывает сообщения
 func (b *Bot) handleMessage(message *tgbotapi.Message) error {
 	b.logger.Info("Handling message", "chat_id", message.Chat.ID, "text", message.Text)
-	
+
 	// Получаем пользователя
 	user, err := utils.GetOrCreateUser(message.From, b.userService)
 	if err != nil {
 		b.logger.Error("Failed to get user", "error", err)
 		return err
 	}
-	
+
 	// Обрабатываем команды
 	if message.IsCommand() {
 		command := message.Command()
 		args := message.CommandArguments()
-		
+
 		switch command {
 		case "start":
 			return b.startHandler.Handle(message, user, args)
 		case "help":
 			return b.helpHandler.Handle(message, user, args)
+		case "admin":
+			return b.adminHandler.Handle(message, user, args)
+		case "promo":
+			// Обрабатываем команду промокода
+			return b.promoCodeHandler.HandlePromoCodeMessage(message, user)
 		default:
 			return b.handleUnknownCommand(message, user, args)
 		}
 	}
-	
+
 	// Обрабатываем обычные сообщения
 	return b.textHandler.Handle(message, user)
 }
@@ -148,14 +160,14 @@ func (b *Bot) handleMessage(message *tgbotapi.Message) error {
 // handleCallbackQuery обрабатывает callback queries
 func (b *Bot) handleCallbackQuery(query *tgbotapi.CallbackQuery) error {
 	b.logger.Info("Handling callback query", "chat_id", query.Message.Chat.ID, "data", query.Data)
-	
+
 	// Получаем пользователя
 	user, err := utils.GetOrCreateUser(query.From, b.userService)
 	if err != nil {
 		b.logger.Error("Failed to get user", "error", err)
 		return err
 	}
-	
+
 	// Обрабатываем callback query
 	return b.handleCallbackQueryData(query, user)
 }
@@ -163,13 +175,15 @@ func (b *Bot) handleCallbackQuery(query *tgbotapi.CallbackQuery) error {
 // handleCallbackQueryData обрабатывает данные callback query
 func (b *Bot) handleCallbackQueryData(query *tgbotapi.CallbackQuery, user *models.User) error {
 	data := query.Data
-	
+
 	// Обрабатываем различные типы callback'ов
 	switch {
 	case data == "balance":
 		return b.balanceHandler.Handle(query, user)
 	case data == "start":
 		return b.handleStartCallback(query, user)
+	case strings.HasPrefix(data, "promo_code:"):
+		return b.promoCodeHandler.Handle(query, user)
 	default:
 		b.logger.Info("Unknown callback data", "data", data)
 		return nil
@@ -183,7 +197,7 @@ func (b *Bot) handleStartCallback(query *tgbotapi.CallbackQuery, user *models.Us
 		Chat: query.Message.Chat,
 		From: query.From,
 	}
-	
+
 	return b.startHandler.Handle(message, user, "")
 }
 

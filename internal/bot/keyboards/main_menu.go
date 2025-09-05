@@ -26,7 +26,7 @@ func NewMainMenuKeyboard(config *config.Config, subscriptionService services.Sub
 // Create создает клавиатуру главного меню
 func (k *MainMenuKeyboard) Create(user *models.User) *telego.InlineKeyboardMarkup {
 	var keyboardRows [][]telego.InlineKeyboardButton
-	
+
 	// Баланс
 	balanceText := fmt.Sprintf("💰 Баланс %.0f₽", user.Balance)
 	keyboardRows = append(keyboardRows, []telego.InlineKeyboardButton{
@@ -35,7 +35,7 @@ func (k *MainMenuKeyboard) Create(user *models.User) *telego.InlineKeyboardMarku
 			CallbackData: "balance",
 		},
 	})
-	
+
 	// Купить
 	keyboardRows = append(keyboardRows, []telego.InlineKeyboardButton{
 		{
@@ -43,7 +43,7 @@ func (k *MainMenuKeyboard) Create(user *models.User) *telego.InlineKeyboardMarku
 			CallbackData: "buy_subscription",
 		},
 	})
-	
+
 	// Пробный период (если включен и пользователь еще не использовал)
 	if k.config.Trial.Enabled {
 		hasUsedTrial, err := k.subscriptionService.HasUsedTrial(user.ID)
@@ -56,7 +56,7 @@ func (k *MainMenuKeyboard) Create(user *models.User) *telego.InlineKeyboardMarku
 			})
 		}
 	}
-	
+
 	// Моя подписка - Mini App кнопка
 	keyboardRows = append(keyboardRows, []telego.InlineKeyboardButton{
 		{
@@ -66,7 +66,7 @@ func (k *MainMenuKeyboard) Create(user *models.User) *telego.InlineKeyboardMarku
 			},
 		},
 	})
-	
+
 	// Рефералы и Промокод
 	keyboardRows = append(keyboardRows, []telego.InlineKeyboardButton{
 		{
@@ -75,10 +75,10 @@ func (k *MainMenuKeyboard) Create(user *models.User) *telego.InlineKeyboardMarku
 		},
 		{
 			Text:         "🎟️ Промокод",
-			CallbackData: "promo_code",
+			CallbackData: "promo_code:menu",
 		},
 	})
-	
+
 	// Язык и Статус
 	keyboardRows = append(keyboardRows, []telego.InlineKeyboardButton{
 		{
@@ -90,7 +90,7 @@ func (k *MainMenuKeyboard) Create(user *models.User) *telego.InlineKeyboardMarku
 			CallbackData: "status",
 		},
 	})
-	
+
 	// Поддержка
 	keyboardRows = append(keyboardRows, []telego.InlineKeyboardButton{
 		{

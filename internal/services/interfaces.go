@@ -2,6 +2,7 @@ package services
 
 import (
 	"remnawave-tg-shop/internal/models"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -56,4 +57,50 @@ type ServerService interface {
 	GetPlan(id int) (*models.Plan, error)
 	SyncServers() error
 	SyncPlans(serverID int) error
+}
+
+// IPromoCodeService интерфейс для работы с промокодами
+type IPromoCodeService interface {
+	CreatePromoCode(code, promoType string, value float64, maxUses int, validFrom, validUntil *time.Time, description string, createdBy uuid.UUID) (*models.PromoCode, error)
+	GeneratePromoCode(promoType string, value float64, maxUses int, validFrom, validUntil *time.Time, description string, createdBy uuid.UUID) (*models.PromoCode, error)
+	ApplyPromoCode(userID uuid.UUID, code string) (*models.PromoCode, error)
+	GetPromoCode(code string) (*models.PromoCode, error)
+	GetPromoCodeByID(id uuid.UUID) (*models.PromoCode, error)
+	GetAllPromoCodes(limit, offset int) ([]models.PromoCode, error)
+	UpdatePromoCode(promoCode *models.PromoCode) error
+	DeletePromoCode(id uuid.UUID) error
+	GetValidPromoCodes() ([]models.PromoCode, error)
+}
+
+// INotificationService интерфейс для работы с уведомлениями
+type INotificationService interface {
+	CreateNotification(userID *uuid.UUID, notificationType, title, message string) (*models.Notification, error)
+	SendNotification(notificationID uuid.UUID, botToken string) error
+	SendBulkNotification(notificationType, title, message string, botToken string) error
+	SendToUsersWithActiveSubscriptions(notificationType, title, message string, botToken string) error
+	SendToUsersWithExpiredSubscriptions(notificationType, title, message string, botToken string) error
+	CheckExpiringSubscriptions(botToken string) error
+	GetNotificationsByUserID(userID uuid.UUID, limit, offset int) ([]models.Notification, error)
+	MarkAsRead(notificationID uuid.UUID) error
+	GetUnreadCount(userID uuid.UUID) (int64, error)
+}
+
+// IActivityLogService интерфейс для работы с логами активности
+type IActivityLogService interface {
+	LogActivity(userID uuid.UUID, action string, data interface{}, ipAddress, userAgent string) error
+	LogCommand(userID uuid.UUID, command, args string, ipAddress, userAgent string) error
+	LogMessage(userID uuid.UUID, message string, ipAddress, userAgent string) error
+	LogCallback(userID uuid.UUID, callbackData string, ipAddress, userAgent string) error
+	LogPayment(userID uuid.UUID, paymentID uuid.UUID, amount float64, method string, ipAddress, userAgent string) error
+	LogSubscription(userID uuid.UUID, subscriptionID uuid.UUID, action string, ipAddress, userAgent string) error
+	LogPromoCode(userID uuid.UUID, promoCodeID uuid.UUID, code string, ipAddress, userAgent string) error
+	LogReferral(userID uuid.UUID, referredUserID uuid.UUID, action string, ipAddress, userAgent string) error
+	GetUserActivity(userID uuid.UUID, limit, offset int) ([]models.ActivityLog, error)
+	GetActivityByAction(action string, limit, offset int) ([]models.ActivityLog, error)
+	GetAllActivity(limit, offset int) ([]models.ActivityLog, error)
+	GetActivityByDateRange(startDate, endDate time.Time, limit, offset int) ([]models.ActivityLog, error)
+	GetUserActivityByDateRange(userID uuid.UUID, startDate, endDate time.Time, limit, offset int) ([]models.ActivityLog, error)
+	GetUserActivityCount(userID uuid.UUID) (int64, error)
+	GetActionCount(action string) (int64, error)
+	CleanupOldLogs(daysToKeep int) error
 }
