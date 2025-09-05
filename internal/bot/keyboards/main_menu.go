@@ -49,9 +49,9 @@ func (k *MainMenuKeyboard) Create(user *models.User) tgbotapi.InlineKeyboardMark
 	}
 	
 	// Моя подписка - Mini App кнопка
-	keyboardRows = append(keyboardRows, []tgbotapi.InlineKeyboardButton{
-		tgbotapi.NewInlineKeyboardButtonWebApp("🔒 Моя подписка", &tgbotapi.WebAppInfo{URL: k.config.MiniApp.URL}),
-	})
+	button := tgbotapi.NewInlineKeyboardButtonData("🔒 Моя подписка", "")
+	button.WebApp = &tgbotapi.WebAppInfo{URL: k.config.MiniApp.URL}
+	keyboardRows = append(keyboardRows, []tgbotapi.InlineKeyboardButton{button})
 	
 	// Рефералы и Промокод
 	keyboardRows = append(keyboardRows, []tgbotapi.InlineKeyboardButton{
