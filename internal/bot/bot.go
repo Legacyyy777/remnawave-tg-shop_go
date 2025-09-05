@@ -595,6 +595,23 @@ func (b *Bot) handleBuySubscriptionCallback(query *tgbotapi.CallbackQuery, user 
 
 // handleMySubscriptionsCallback обрабатывает callback для моих подписки
 func (b *Bot) handleMySubscriptionsCallback(query *tgbotapi.CallbackQuery, user *models.User) {
+	// Проверяем, есть ли URL миниаппа
+	if b.config.MiniApp.URL == "" {
+		text := "📱 Управление подписками\n\n"
+		text += "❌ Миниапп временно недоступен.\n"
+		text += "Обратитесь к администратору для получения помощи."
+		
+		keyboard := tgbotapi.NewInlineKeyboardMarkup(
+			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData("🔙 Назад", "start"),
+			),
+		)
+		
+		b.editMessage(query.Message.Chat.ID, query.Message.MessageID, text, &keyboard)
+		b.answerCallbackQuery(query.ID, "❌ Миниапп недоступен")
+		return
+	}
+	
 	// Создаем кнопку с URL для миниаппа
 	keyboard := tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(

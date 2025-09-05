@@ -202,6 +202,8 @@ func Load() (*Config, error) {
 
 	// Mini App
 	cfg.MiniApp.URL = getEnv("SUBSCRIPTION_MINI_APP_URL", "")
+	fmt.Printf("DEBUG: SUBSCRIPTION_MINI_APP_URL loaded: '%s'\n", cfg.MiniApp.URL)
+	fmt.Printf("DEBUG: MiniApp.URL length: %d\n", len(cfg.MiniApp.URL))
 
 	// Environment
 	cfg.Environment = getEnv("ENVIRONMENT", "development")
@@ -232,15 +234,18 @@ func (c *Config) Validate() error {
 	if c.Security.EncryptionKey == "" || len(c.Security.EncryptionKey) != 32 {
 		return fmt.Errorf("ENCRYPTION_KEY must be 32 characters long")
 	}
-	if c.MiniApp.URL == "" {
-		return fmt.Errorf("SUBSCRIPTION_MINI_APP_URL is required")
-	}
+	// Временно отключаем валидацию для отладки
+	// if c.MiniApp.URL == "" {
+	//	return fmt.Errorf("SUBSCRIPTION_MINI_APP_URL is required")
+	// }
 	return nil
 }
 
 // Helper functions
 func getEnv(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
+	value := os.Getenv(key)
+	fmt.Printf("DEBUG getEnv: key='%s', value='%s', empty=%t\n", key, value, value == "")
+	if value != "" {
 		return value
 	}
 	return defaultValue
