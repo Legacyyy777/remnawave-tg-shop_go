@@ -10,6 +10,7 @@ import (
 	"remnawave-tg-shop/internal/services"
 
 	"gopkg.in/telebot.v3"
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
 // Bot представляет телеграм-бота
@@ -25,7 +26,8 @@ type Bot struct {
 // NewBot создает нового бота
 func NewBot(cfg *config.Config, log logger.Logger, userService services.UserService, subscriptionService services.SubscriptionService, paymentService services.PaymentService) (*Bot, error) {
 	pref := telebot.Settings{
-		Token:  cfg.BotToken,
+		Token: cfg.BotToken,
+		// Используем Long Polling для простоты
 		Poller: &telebot.LongPoller{Timeout: 10 * time.Second},
 	}
 
@@ -58,7 +60,25 @@ func (b *Bot) Start() error {
 
 // HandleUpdate обрабатывает обновления для webhook
 func (b *Bot) HandleUpdate(update interface{}) error {
-	// Для telebot webhook обрабатывается автоматически
+	// Преобразуем обновление в формат telebot
+	if tgbotUpdate, ok := update.(tgbotapi.Update); ok {
+		// Создаем контекст для telebot
+		ctx := &telebot.Context{
+			Update: tgbotUpdate,
+			Bot:    b.api,
+		}
+		
+		// Обрабатываем обновление
+		return b.processUpdate(ctx)
+	}
+	return nil
+}
+
+// processUpdate обрабатывает обновление
+func (b *Bot) processUpdate(ctx *telebot.Context) error {
+	// Здесь можно добавить логику обработки обновлений
+	// Пока что просто логируем
+	b.logger.Info("Processing update", "update_id", ctx.Update.UpdateID)
 	return nil
 }
 

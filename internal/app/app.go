@@ -13,11 +13,12 @@ import (
 	"remnawave-tg-shop/internal/config"
 	"remnawave-tg-shop/internal/database"
 	"remnawave-tg-shop/internal/logger"
+
+	"github.com/gin-gonic/gin"
+	"gopkg.in/telebot.v3"
 	"remnawave-tg-shop/internal/repositories"
 	"remnawave-tg-shop/internal/services"
 	"remnawave-tg-shop/internal/services/remnawave"
-
-	"github.com/gin-gonic/gin"
 )
 
 // App представляет основное приложение
@@ -70,20 +71,18 @@ func (a *App) Run() error {
 	}
 	a.bot = telegramBot
 
-	// Настраиваем HTTP сервер для webhook'ов (если нужен)
-	if a.config.BotWebhookURL != "" {
-		if err := a.setupHTTPServer(); err != nil {
-			return fmt.Errorf("failed to setup HTTP server: %w", err)
-		}
-
-		// Запускаем HTTP сервер
-		go func() {
-			a.logger.Info("Starting HTTP server", "port", a.config.Server.Port)
-			if err := a.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-				a.logger.Error("HTTP server failed", "error", err)
-			}
-		}()
+	// Настраиваем HTTP сервер для дополнительных endpoints
+	if err := a.setupHTTPServer(); err != nil {
+		return fmt.Errorf("failed to setup HTTP server: %w", err)
 	}
+
+	// Запускаем HTTP сервер
+	go func() {
+		a.logger.Info("Starting HTTP server", "port", a.config.Server.Port)
+		if err := a.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			a.logger.Error("HTTP server failed", "error", err)
+		}
+	}()
 
 	// Запускаем бота в отдельной горутине
 	go func() {
@@ -154,9 +153,20 @@ func (a *App) setupHTTPServer() error {
 
 // handleTelegramWebhook обрабатывает webhook от Telegram
 func (a *App) handleTelegramWebhook(c *gin.Context) {
-	// С telebot webhook обрабатывается автоматически через встроенный механизм
-	// Этот endpoint оставляем для совместимости и дополнительной обработки
-	a.logger.Info("Received Telegram webhook")
+	var update tgbotapi.Update
+	if err := c.ShouldBindJSON(&update); err != nil {
+		a.logger.Error("Failed to parse Telegram webhook", "error", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON"})
+		return
+	}
+
+	// Передаем обновление в бот
+	if err := a.bot.HandleUpdate(update); err != nil {
+		a.logger.Error("Failed to handle Telegram update", "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to process update"})
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }
 
