@@ -179,13 +179,10 @@ func (b *Bot) handleCommand(message *tgbotapi.Message, user *models.User) {
 func (b *Bot) handleStartCommand(message *tgbotapi.Message, user *models.User, args string) {
 	b.logger.Info("Handling start command", "chat_id", message.Chat.ID, "user_id", user.ID)
 	
-	text := "🎉 Добро пожаловать в Remnawave Shop!\n\n"
-	text += "Здесь вы можете купить подписки на VPN серверы.\n\n"
-	text += "📋 Доступные команды:\n"
-	text += "/balance - 💰 Ваш баланс\n"
-	text += "/subscriptions - 📱 Мои подписки\n"
-	text += "/referrals - 👥 Рефералы\n"
-	text += "/help - ❓ Помощь\n\n"
+	// Формируем приветствие с именем пользователя
+	username := user.GetDisplayName()
+	text := fmt.Sprintf("Привет, %s👋\n\n", username)
+	text += "Что бы вы хотели сделать?"
 
 	// Обработка реферального кода
 	if args != "" {
@@ -198,16 +195,17 @@ func (b *Bot) handleStartCommand(message *tgbotapi.Message, user *models.User, a
 			// Начисляем бонус рефереру
 			b.userService.AddBalance(referralUser.ID, 50) // 50 рублей бонус
 			
-			text += "🎁 Вы получили бонус за переход по реферальной ссылке!\n"
-			text += "💰 На ваш баланс начислено 50 рублей.\n\n"
+			text += "\n\n🎁 Вы получили бонус за переход по реферальной ссылке!\n"
+			text += "💰 На ваш баланс начислено 50 рублей."
 		}
 	}
 
-	text += "Выберите действие:"
+	// Формируем кнопку с балансом
+	balanceText := fmt.Sprintf("Баланс %.0f₽", user.Balance)
 
 	keyboard := tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("💰 Баланс", "balance"),
+			tgbotapi.NewInlineKeyboardButtonData(balanceText, "balance"),
 			tgbotapi.NewInlineKeyboardButtonData("🛒 Купить подписку", "buy_subscription"),
 		),
 		tgbotapi.NewInlineKeyboardRow(
