@@ -5,6 +5,7 @@ import (
 	"remnawave-tg-shop/internal/services"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/mymmrac/telego"
 )
 
 // GetOrCreateUser получает или создает пользователя из Telegram User
@@ -46,5 +47,26 @@ func SendMessageWithKeyboard(chatID int64, text string, keyboard tgbotapi.Inline
 	msg := tgbotapi.NewMessage(chatID, text)
 	msg.ReplyMarkup = keyboard
 	_, err = bot.Send(msg)
+	return err
+}
+
+// SendMessageWithTelegoKeyboard отправляет сообщение с клавиатурой telego
+func SendMessageWithTelegoKeyboard(chatID int64, text string, keyboard *telego.InlineKeyboardMarkup, botToken string) error {
+	bot, err := telego.NewBot(botToken, telego.WithDefaultDebugLogger())
+	if err != nil {
+		return err
+	}
+	
+	msg := telego.SendMessageParams{
+		ChatID:    telego.ChatID{ID: chatID},
+		Text:      text,
+		ParseMode: telego.ModeHTML,
+	}
+	
+	if keyboard != nil {
+		msg.ReplyMarkup = keyboard
+	}
+	
+	_, err = bot.SendMessage(&msg)
 	return err
 }

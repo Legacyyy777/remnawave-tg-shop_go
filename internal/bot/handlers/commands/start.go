@@ -54,5 +54,5 @@ func (h *StartHandler) Handle(message *tgbotapi.Message, user *models.User, args
 	keyboard := h.keyboard.Create(user)
 
 	// Отправляем сообщение
-	return utils.SendMessageWithKeyboard(message.Chat.ID, text, keyboard, h.config.BotToken)
+	return utils.SendMessageWithTelegoKeyboard(message.Chat.ID, text, keyboard, h.config.BotToken)
 }
