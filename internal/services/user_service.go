@@ -12,19 +12,6 @@ import (
 	"github.com/google/uuid"
 )
 
-// UserService интерфейс для работы с пользователями
-type UserService interface {
-	CreateOrGetUser(telegramID int64, username, firstName, lastName, languageCode string) (*models.User, error)
-	GetUser(telegramID int64) (*models.User, error)
-	UpdateUser(user *models.User) error
-	BlockUser(telegramID int64) error
-	UnblockUser(telegramID int64) error
-	AddBalance(userID uuid.UUID, amount float64) error
-	SubtractBalance(userID uuid.UUID, amount float64) error
-	GetReferrals(userID uuid.UUID) ([]models.User, error)
-	SearchUsers(query string, limit int) ([]models.User, error)
-	IsAdmin(telegramID int64) bool
-}
 
 // userService реализация UserService
 type userService struct {
