@@ -2,7 +2,6 @@ package callbacks
 
 import (
 	"fmt"
-	"remnawave-tg-shop/internal/bot/keyboards"
 	"remnawave-tg-shop/internal/bot/utils"
 	"remnawave-tg-shop/internal/config"
 	"remnawave-tg-shop/internal/models"

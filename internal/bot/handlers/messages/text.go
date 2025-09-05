@@ -1,7 +1,6 @@
 package messages
 
 import (
-	"remnawave-tg-shop/internal/bot/utils"
 	"remnawave-tg-shop/internal/config"
 	"remnawave-tg-shop/internal/models"
 

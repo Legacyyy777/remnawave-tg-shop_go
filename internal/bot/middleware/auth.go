@@ -29,7 +29,7 @@ func (m *AuthMiddleware) Handle(next telebot.HandlerFunc) telebot.HandlerFunc {
 		if c.Message() != nil {
 			m.logger.Info("Received message", 
 				"chat_id", c.Message().Chat.ID, 
-				"user_id", c.Message().From.ID,
+				"user_id", c.Message().Sender.ID,
 				"text", c.Message().Text)
 		}
 
@@ -52,7 +52,7 @@ func (m *AuthMiddleware) getUserFromContext(c telebot.Context) *models.User {
 		return nil
 	}
 
-	from := c.Message().From
+	from := c.Message().Sender
 	if from == nil {
 		return nil
 	}
