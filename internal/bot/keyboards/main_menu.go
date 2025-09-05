@@ -6,7 +6,6 @@ import (
 	"remnawave-tg-shop/internal/models"
 	"remnawave-tg-shop/internal/services"
 
-	"gopkg.in/telebot.v3"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
