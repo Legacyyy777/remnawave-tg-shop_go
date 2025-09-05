@@ -133,13 +133,11 @@ func Load() (*Config, error) {
 	cfg.Admin.MaintenanceMode = getEnvAsBool("MAINTENANCE_MODE", false)
 	cfg.Admin.MaintenanceAutoEnable = getEnvAsBool("MAINTENANCE_AUTO_ENABLE", true)
 	
-	// Отладочная информация для админа (только в development)
-	if cfg.Environment == "development" {
-		fmt.Printf("DEBUG: ADMIN_TELEGRAM_ID loaded: %d\n", cfg.Admin.TelegramID)
-		fmt.Printf("DEBUG: Environment variables check:\n")
-		fmt.Printf("  ADMIN_TELEGRAM_ID env var: '%s'\n", os.Getenv("ADMIN_TELEGRAM_ID"))
-		fmt.Printf("  Parsed as int64: %d\n", cfg.Admin.TelegramID)
-	}
+	// Отладочная информация для админа
+	fmt.Printf("DEBUG: ADMIN_TELEGRAM_ID loaded: %d\n", cfg.Admin.TelegramID)
+	fmt.Printf("DEBUG: Environment variables check:\n")
+	fmt.Printf("  ADMIN_TELEGRAM_ID env var: '%s'\n", os.Getenv("ADMIN_TELEGRAM_ID"))
+	fmt.Printf("  Parsed as int64: %d\n", cfg.Admin.TelegramID)
 
 	// Security
 	cfg.Security.JWTSecret = getEnv("JWT_SECRET", "")
