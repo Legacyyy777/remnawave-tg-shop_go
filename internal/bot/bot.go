@@ -180,6 +180,10 @@ func (b *Bot) handleCallbackQueryData(query *tgbotapi.CallbackQuery, user *model
 	switch {
 	case data == "balance":
 		return b.balanceHandler.Handle(query, user)
+	case data == "buy_subscription":
+		return b.handleBuySubscription(query, user)
+	case strings.HasPrefix(data, "subscription:"):
+		return b.handleSubscriptionSelection(query, user)
 	case data == "start":
 		return b.handleStartCallback(query, user)
 	case strings.HasPrefix(data, "promo_code:"):
@@ -188,6 +192,131 @@ func (b *Bot) handleCallbackQueryData(query *tgbotapi.CallbackQuery, user *model
 		b.logger.Info("Unknown callback data", "data", data)
 		return nil
 	}
+}
+
+// handleBuySubscription обрабатывает callback для покупки подписки
+func (b *Bot) handleBuySubscription(query *tgbotapi.CallbackQuery, _ *models.User) error {
+	text := "🚀 Выберите тарифный план:\n\n"
+	text += "📦 Basic (30 дней) - 299₽\n"
+	text += "⭐ Premium (90 дней) - 799₽\n"
+	text += "💎 Pro (365 дней) - 2499₽\n\n"
+	text += "Выберите подходящий тариф:"
+
+	// Создаем клавиатуру с тарифами
+	keyboard := b.createSubscriptionKeyboard()
+
+	// Отправляем сообщение
+	return utils.SendMessageWithKeyboard(query.Message.Chat.ID, text, keyboard, b.config.BotToken)
+}
+
+// createSubscriptionKeyboard создает клавиатуру с тарифами подписки
+func (b *Bot) createSubscriptionKeyboard() tgbotapi.InlineKeyboardMarkup {
+	var keyboardRows [][]tgbotapi.InlineKeyboardButton
+
+	// Тарифы
+	keyboardRows = append(keyboardRows, []tgbotapi.InlineKeyboardButton{
+		tgbotapi.NewInlineKeyboardButtonData("📦 Basic (30 дней) - 299₽", "subscription:basic"),
+	})
+	keyboardRows = append(keyboardRows, []tgbotapi.InlineKeyboardButton{
+		tgbotapi.NewInlineKeyboardButtonData("⭐ Premium (90 дней) - 799₽", "subscription:premium"),
+	})
+	keyboardRows = append(keyboardRows, []tgbotapi.InlineKeyboardButton{
+		tgbotapi.NewInlineKeyboardButtonData("💎 Pro (365 дней) - 2499₽", "subscription:pro"),
+	})
+
+	// Кнопка "Назад"
+	keyboardRows = append(keyboardRows, []tgbotapi.InlineKeyboardButton{
+		tgbotapi.NewInlineKeyboardButtonData("🔙 Назад", "start"),
+	})
+
+	return tgbotapi.NewInlineKeyboardMarkup(keyboardRows...)
+}
+
+// handleSubscriptionSelection обрабатывает выбор тарифа подписки
+func (b *Bot) handleSubscriptionSelection(query *tgbotapi.CallbackQuery, user *models.User) error {
+	data := query.Data
+	parts := strings.Split(data, ":")
+	if len(parts) < 2 {
+		return b.handleBuySubscription(query, user)
+	}
+
+	plan := parts[1]
+
+	// Определяем параметры тарифа
+	var duration int
+	var price float64
+	var planName string
+
+	switch plan {
+	case "basic":
+		duration = 30
+		price = 299
+		planName = "Basic"
+	case "premium":
+		duration = 90
+		price = 799
+		planName = "Premium"
+	case "pro":
+		duration = 365
+		price = 2499
+		planName = "Pro"
+	default:
+		return b.handleBuySubscription(query, user)
+	}
+
+	// Проверяем баланс пользователя
+	if user.Balance < price {
+		text := "❌ Недостаточно средств на балансе!\n\n"
+		text += fmt.Sprintf("💰 Ваш баланс: %.0f₽\n", user.Balance)
+		text += fmt.Sprintf("💳 Стоимость: %.0f₽\n\n", price)
+		text += "Пополните баланс для покупки подписки."
+
+		keyboard := tgbotapi.NewInlineKeyboardMarkup(
+			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData("💰 Пополнить баланс", "balance"),
+			),
+			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData("🔙 Назад", "buy_subscription"),
+			),
+		)
+
+		return utils.SendMessageWithKeyboard(query.Message.Chat.ID, text, keyboard, b.config.BotToken)
+	}
+
+	// Создаем подписку (конвертируем дни в месяцы)
+	durationMonths := duration / 30
+	if durationMonths < 1 {
+		durationMonths = 1
+	}
+
+	err := b.subscriptionService.CreateSubscriptionByPlan(user.ID, planName, durationMonths, int(price))
+	if err != nil {
+		b.logger.Error("Failed to create subscription", "error", err, "user_id", user.ID, "plan", plan)
+		text := "❌ Ошибка при создании подписки. Попробуйте позже."
+		return utils.SendMessage(query.Message.Chat.ID, text, b.config.BotToken)
+	}
+
+	// Списываем средства с баланса
+	err = b.userService.SubtractBalance(user.ID, price)
+	if err != nil {
+		b.logger.Error("Failed to subtract balance", "error", err, "user_id", user.ID, "amount", price)
+		text := "❌ Ошибка при списании средств. Попробуйте позже."
+		return utils.SendMessage(query.Message.Chat.ID, text, b.config.BotToken)
+	}
+
+	// Отправляем подтверждение
+	text := fmt.Sprintf("✅ Подписка %s успешно активирована!\n\n", planName)
+	text += fmt.Sprintf("📅 Срок действия: %d дней\n", duration)
+	text += fmt.Sprintf("💰 Стоимость: %.0f₽\n", price)
+	text += "🔒 Используйте кнопку 'Моя подписка' для получения конфигурации VPN."
+
+	keyboard := tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("🔙 Главное меню", "start"),
+		),
+	)
+
+	return utils.SendMessageWithKeyboard(query.Message.Chat.ID, text, keyboard, b.config.BotToken)
 }
 
 // handleStartCallback обрабатывает callback для главного меню
@@ -202,7 +331,7 @@ func (b *Bot) handleStartCallback(query *tgbotapi.CallbackQuery, user *models.Us
 }
 
 // handleUnknownCommand обрабатывает неизвестные команды
-func (b *Bot) handleUnknownCommand(message *tgbotapi.Message, user *models.User, args string) error {
+func (b *Bot) handleUnknownCommand(message *tgbotapi.Message, _ *models.User, _ string) error {
 	text := "❓ Неизвестная команда. Используйте /help для получения списка команд."
 	return utils.SendMessage(message.Chat.ID, text, b.config.BotToken)
 }
