@@ -205,12 +205,24 @@ func (b *Bot) handleStartCommand(message *tgbotapi.Message, user *models.User, a
 
 	keyboard := tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData(balanceText, "balance"),
-			tgbotapi.NewInlineKeyboardButtonData("🛒 Купить подписку", "buy_subscription"),
+			tgbotapi.NewInlineKeyboardButtonData("💰 " + balanceText, "balance"),
 		),
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("📱 Мои подписки", "my_subscriptions"),
-			tgbotapi.NewInlineKeyboardButtonData("👥 Рефералы", "referrals"),
+			tgbotapi.NewInlineKeyboardButtonData("🚀 Купить", "buy_subscription"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("🔒 Моя подписка", "my_subscriptions"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("🎁 Рефералы", "referrals"),
+			tgbotapi.NewInlineKeyboardButtonData("🎟️ Промокод", "promo_code"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("🌐 Язык", "language"),
+			tgbotapi.NewInlineKeyboardButtonData("📊 Статус", "status"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("💬 Поддержка", "support"),
 		),
 	)
 
@@ -409,6 +421,16 @@ func (b *Bot) handleCallbackQuery(query *tgbotapi.CallbackQuery) {
 		b.handleMySubscriptionsCallback(query, user)
 	case data == "referrals":
 		b.handleReferralsCallback(query, user)
+	case data == "promo_code":
+		b.handlePromoCodeCallback(query, user)
+	case data == "language":
+		b.handleLanguageCallback(query, user)
+	case data == "status":
+		b.handleStatusCallback(query, user)
+	case data == "support":
+		b.handleSupportCallback(query, user)
+	case data == "start":
+		b.handleStartCallback(query, user)
 	case strings.HasPrefix(data, "payment_"):
 		b.handlePaymentCallback(query, user, data)
 	case strings.HasPrefix(data, "admin_"):
@@ -599,4 +621,126 @@ func (b *Bot) handleAdminCallback(query *tgbotapi.CallbackQuery, user *models.Us
 	default:
 		b.answerCallbackQuery(query.ID, "❓ Неизвестное действие админ-панели")
 	}
+}
+
+// handlePromoCodeCallback обрабатывает callback для промокода
+func (b *Bot) handlePromoCodeCallback(query *tgbotapi.CallbackQuery, user *models.User) {
+	text := "🎟️ Промокоды\n\n"
+	text += "Введите промокод для получения скидки или бонуса.\n\n"
+	text += "💡 Промокоды можно получить:\n"
+	text += "• От друзей\n"
+	text += "• В рекламных акциях\n"
+	text += "• За участие в конкурсах\n\n"
+	text += "Просто отправьте промокод в чат."
+
+	b.editMessage(query.Message.Chat.ID, query.Message.MessageID, text, nil)
+	b.answerCallbackQuery(query.ID, "🎟️ Введите промокод")
+}
+
+// handleLanguageCallback обрабатывает callback для смены языка
+func (b *Bot) handleLanguageCallback(query *tgbotapi.CallbackQuery, user *models.User) {
+	text := "🌐 Выбор языка\n\n"
+	text += "Выберите предпочитаемый язык интерфейса:\n\n"
+	text += "🇷🇺 Русский (текущий)\n"
+	text += "🇺🇸 English\n"
+	text += "🇩🇪 Deutsch\n"
+	text += "🇫🇷 Français\n\n"
+	text += "Смена языка будет доступна в следующих версиях."
+
+	keyboard := tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("🇷🇺 Русский", "lang_ru"),
+			tgbotapi.NewInlineKeyboardButtonData("🇺🇸 English", "lang_en"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("🇩🇪 Deutsch", "lang_de"),
+			tgbotapi.NewInlineKeyboardButtonData("🇫🇷 Français", "lang_fr"),
+		),
+	)
+
+	b.editMessage(query.Message.Chat.ID, query.Message.MessageID, text, &keyboard)
+	b.answerCallbackQuery(query.ID, "🌐 Выберите язык")
+}
+
+// handleStatusCallback обрабатывает callback для статуса
+func (b *Bot) handleStatusCallback(query *tgbotapi.CallbackQuery, user *models.User) {
+	text := "📊 Статус аккаунта\n\n"
+	text += fmt.Sprintf("👤 Пользователь: %s\n", user.GetDisplayName())
+	text += fmt.Sprintf("💰 Баланс: %.2f ₽\n", user.Balance)
+	text += fmt.Sprintf("📅 Регистрация: %s\n", user.CreatedAt.Format("02.01.2006"))
+	text += fmt.Sprintf("🔗 Реферальный код: %s\n", user.ReferralCode)
+	
+	if user.ReferredBy != nil {
+		text += "🎁 Получен по реферальной ссылке\n"
+	}
+	
+	text += "\n📱 Активные подписки:\n"
+	subscriptions, err := b.subscriptionService.GetUserSubscriptions(user.ID)
+	if err == nil && len(subscriptions) > 0 {
+		for _, sub := range subscriptions {
+			if sub.IsActive() {
+				text += fmt.Sprintf("• %s - %s (до %s)\n", sub.ServerName, sub.PlanName, sub.ExpiresAt.Format("02.01.2006"))
+			}
+		}
+	} else {
+		text += "Нет активных подписок\n"
+	}
+
+	b.editMessage(query.Message.Chat.ID, query.Message.MessageID, text, nil)
+	b.answerCallbackQuery(query.ID, "📊 Статус загружен")
+}
+
+// handleSupportCallback обрабатывает callback для поддержки
+func (b *Bot) handleSupportCallback(query *tgbotapi.CallbackQuery, user *models.User) {
+	text := "💬 Поддержка\n\n"
+	text += "Если у вас возникли вопросы или проблемы, обратитесь к нашей службе поддержки:\n\n"
+	text += "📧 Email: support@remnawave.com\n"
+	text += "💬 Telegram: @remnawave_support\n"
+	text += "🕐 Время работы: 24/7\n\n"
+	text += "📋 Часто задаваемые вопросы:\n"
+	text += "• Как пополнить баланс?\n"
+	text += "• Как получить конфигурацию VPN?\n"
+	text += "• Как отменить подписку?\n"
+	text += "• Проблемы с подключением\n\n"
+	text += "Мы ответим в течение 15 минут!"
+
+	b.editMessage(query.Message.Chat.ID, query.Message.MessageID, text, nil)
+	b.answerCallbackQuery(query.ID, "💬 Поддержка готова помочь")
+}
+
+// handleStartCallback обрабатывает callback для возврата в главное меню
+func (b *Bot) handleStartCallback(query *tgbotapi.CallbackQuery, user *models.User) {
+	// Формируем приветствие с именем пользователя
+	username := user.GetDisplayName()
+	text := fmt.Sprintf("Привет, %s👋\n\n", username)
+	text += "Что бы вы хотели сделать?"
+
+	// Формируем кнопку с балансом
+	balanceText := fmt.Sprintf("Баланс %.0f₽", user.Balance)
+
+	keyboard := tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("💰 " + balanceText, "balance"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("🚀 Купить", "buy_subscription"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("🔒 Моя подписка", "my_subscriptions"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("🎁 Рефералы", "referrals"),
+			tgbotapi.NewInlineKeyboardButtonData("🎟️ Промокод", "promo_code"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("🌐 Язык", "language"),
+			tgbotapi.NewInlineKeyboardButtonData("📊 Статус", "status"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("💬 Поддержка", "support"),
+		),
+	)
+
+	b.editMessage(query.Message.Chat.ID, query.Message.MessageID, text, &keyboard)
+	b.answerCallbackQuery(query.ID, "🏠 Главное меню")
 }
