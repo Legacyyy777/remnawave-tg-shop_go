@@ -1,5 +1,5 @@
 github.com/bytedance/sonic v1.9.1 h1:6iJ6NqdoxCDz6eCXX3sQs3EyA7cO+4vXl4MyJK4lV3g=
-github.com/bytedance/sonic v1.9.1/go.mod h1:i736AoUSYt75HyZLoJW9ERYxcy6eaN6h4BZXU0P9cR0=
+github.com/bytedance/sonic v1.9.1/go.mod h1:i736AoUSYt75HyZLoJW9ERYxcy6eaN6h4BZXU064P/U=
 github.com/chenzhuoyu/base64x v0.0.0-20221115062448-fe3a3abad311 h1:qSGYFH7+jGhDF8vLC+iwCD4WpbV1EBDSzWkJODFLams=
 github.com/chenzhuoyu/base64x v0.0.0-20221115062448-fe3a3abad311/go.mod h1:bAlkXf4aD1Lc3O7e4y+70/4K1x3DkFEytNfzzqfg4mU=
 github.com/davecgh/go-spew v1.1.0 h1:ZDR5Vd2gsAHXzEFnd6JFOrW+Z/X5YKg71xR22uUO0/8=
