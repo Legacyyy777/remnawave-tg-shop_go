@@ -83,6 +83,27 @@ services:
       # Monitoring
       HEALTH_CHECK_INTERVAL: 30s
       STATS_CLEANUP_INTERVAL: 24h
+      
+      # Payment Method Toggles
+      STARS_ENABLED: ${STARS_ENABLED:-true}
+      TRIBUTE_ENABLED: ${TRIBUTE_ENABLED:-true}
+      YOOKASSA_ENABLED: ${YOOKASSA_ENABLED:-true}
+      CRYPTOPAY_ENABLED: ${CRYPTOPAY_ENABLED:-false}
+      
+      # Subscription Prices (in RUB)
+      RUB_PRICE_1_MONTH: ${RUB_PRICE_1_MONTH:-150}
+      RUB_PRICE_3_MONTHS: ${RUB_PRICE_3_MONTHS:-300}
+      RUB_PRICE_6_MONTHS: ${RUB_PRICE_6_MONTHS:-500}
+      RUB_PRICE_12_MONTHS: ${RUB_PRICE_12_MONTHS:-900}
+      
+      # Trial Settings
+      TRIAL_ENABLED: ${TRIAL_ENABLED:-true}
+      TRIAL_DURATION_DAYS: ${TRIAL_DURATION_DAYS:-5}
+      TRIAL_TRAFFIC_LIMIT_GB: ${TRIAL_TRAFFIC_LIMIT_GB:-0}
+      TRIAL_TRAFFIC_STRATEGY: ${TRIAL_TRAFFIC_STRATEGY:-NO_RESET}
+      
+      # Mini App
+      SUBSCRIPTION_MINI_APP_URL: ${SUBSCRIPTION_MINI_APP_URL}
     ports:
       - "8080:8080"
     depends_on:
