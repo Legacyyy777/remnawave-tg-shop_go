@@ -84,6 +84,10 @@ func (d *Database) migrate() error {
 		&models.Payment{},
 		&models.Server{},
 		&models.Plan{},
+		&models.ActivityLog{},
+		&models.PromoCode{},
+		&models.PromoCodeUsage{},
+		&models.Notification{},
 	); err != nil {
 		return fmt.Errorf("failed to auto migrate: %w", err)
 	}
