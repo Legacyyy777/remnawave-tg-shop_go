@@ -2,6 +2,7 @@ package bot
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"remnawave-tg-shop/internal/config"
@@ -89,16 +90,137 @@ func (b *Bot) processUpdate(update tgbotapi.Update) error {
 
 // handleMessage обрабатывает сообщения
 func (b *Bot) handleMessage(message *tgbotapi.Message) error {
-	// Здесь будет логика обработки сообщений
 	b.logger.Info("Handling message", "chat_id", message.Chat.ID, "text", message.Text)
-	return nil
+	
+	// Получаем пользователя
+	user, err := b.getOrCreateUser(message.From)
+	if err != nil {
+		b.logger.Error("Failed to get user", "error", err)
+		return err
+	}
+	
+	// Обрабатываем команды
+	if message.IsCommand() {
+		command := message.Command()
+		args := message.CommandArguments()
+		
+		switch command {
+		case "start":
+			return b.handleStartCommandTgBot(message, user, args)
+		case "help":
+			return b.handleHelpCommand(message, user, args)
+		case "balance":
+			return b.handleBalanceCommand(message, user, args)
+		case "subscriptions":
+			return b.handleSubscriptionsCommand(message, user, args)
+		case "referrals":
+			return b.handleReferralsCommand(message, user, args)
+		case "admin":
+			return b.handleAdminCommand(message, user, args)
+		default:
+			return b.handleUnknownCommand(message, user, args)
+		}
+	}
+	
+	// Обрабатываем обычные сообщения
+	return b.handleTextMessage(message, user)
 }
 
 // handleCallbackQuery обрабатывает callback queries
 func (b *Bot) handleCallbackQuery(query *tgbotapi.CallbackQuery) error {
-	// Здесь будет логика обработки callback queries
 	b.logger.Info("Handling callback query", "chat_id", query.Message.Chat.ID, "data", query.Data)
+	
+	// Получаем пользователя
+	user, err := b.getOrCreateUser(query.From)
+	if err != nil {
+		b.logger.Error("Failed to get user", "error", err)
+		return err
+	}
+	
+	// Обрабатываем callback query
+	return b.handleCallbackQueryData(query, user)
+}
+
+// getOrCreateUser получает или создает пользователя
+func (b *Bot) getOrCreateUser(from *tgbotapi.User) (*models.User, error) {
+	// Создаем пользователя из Telegram User
+	user := &models.User{
+		TelegramID: from.ID,
+		Username:   from.UserName,
+		FirstName:  from.FirstName,
+		LastName:   from.LastName,
+		LanguageCode: from.LanguageCode,
+	}
+	
+	// Получаем или создаем пользователя
+	existingUser, err := b.userService.GetUserByTelegramID(from.ID)
+	if err != nil {
+		// Пользователь не найден, создаем нового
+		if err := b.userService.CreateUser(user); err != nil {
+			return nil, fmt.Errorf("failed to create user: %w", err)
+		}
+		return user, nil
+	}
+	
+	return existingUser, nil
+}
+
+// handleTextMessage обрабатывает обычные текстовые сообщения
+func (b *Bot) handleTextMessage(message *tgbotapi.Message, user *models.User) error {
+	// Пока что просто логируем
+	b.logger.Info("Handling text message", "chat_id", message.Chat.ID, "text", message.Text)
 	return nil
+}
+
+// handleUnknownCommand обрабатывает неизвестные команды
+func (b *Bot) handleUnknownCommand(message *tgbotapi.Message, user *models.User, args string) error {
+	// Отправляем сообщение о неизвестной команде
+	msg := tgbotapi.NewMessage(message.Chat.ID, "❓ Неизвестная команда. Используйте /help для получения списка команд.")
+	
+	// Отправляем сообщение через tgbotapi
+	bot, err := tgbotapi.NewBotAPI(b.config.BotToken)
+	if err != nil {
+		return fmt.Errorf("failed to create tgbotapi bot: %w", err)
+	}
+	
+	_, err = bot.Send(msg)
+	return err
+}
+
+// handleCallbackQueryData обрабатывает данные callback query
+func (b *Bot) handleCallbackQueryData(query *tgbotapi.CallbackQuery, user *models.User) error {
+	data := query.Data
+	
+	// Обрабатываем различные типы callback'ов
+	switch {
+	case data == "balance":
+		return b.handleBalanceCallback(query, user)
+	case data == "buy_subscription":
+		return b.handleBuySubscriptionCallback(query, user)
+	case data == "my_subscriptions":
+		return b.handleMySubscriptionsCallback(query, user)
+	case data == "referrals":
+		return b.handleReferralsCallback(query, user)
+	case data == "promo_code":
+		return b.handlePromoCodeCallback(query, user)
+	case data == "language":
+		return b.handleLanguageCallback(query, user)
+	case data == "status":
+		return b.handleStatusCallback(query, user)
+	case data == "support":
+		return b.handleSupportCallback(query, user)
+	case data == "trial":
+		return b.handleTrialCallback(query, user)
+	case data == "start":
+		return b.handleStartCallback(query, user)
+	case strings.HasPrefix(data, "tariff_"):
+		return b.handleTariffCallback(query, user)
+	case strings.HasPrefix(data, "payment_"):
+		return b.handlePaymentCallback(query, user)
+	default:
+		b.logger.Info("Unknown callback data", "data", data)
+		return nil
+	}
 }
 
 // setupHandlers настраивает обработчики команд и callback'ов
@@ -212,6 +334,87 @@ func (b *Bot) handleStartCommand(c telebot.Context) error {
 	keyboard := b.createMainMenuKeyboard(user)
 
 	return c.Send(text, keyboard)
+}
+
+// handleStartCommandTgBot обрабатывает команду /start для tgbotapi
+func (b *Bot) handleStartCommandTgBot(message *tgbotapi.Message, user *models.User, args string) error {
+	// Обработка реферального кода
+	if args != "" {
+		referralUser, err := b.userService.GetUserByReferralCode(args)
+		if err == nil && referralUser != nil && referralUser.ID != user.ID {
+			user.ReferredBy = &referralUser.ID
+			b.userService.UpdateUser(user)
+			b.userService.AddBalance(referralUser.ID, 50)
+		}
+	}
+
+	// Формируем приветствие с именем пользователя
+	username := user.GetDisplayName()
+	text := fmt.Sprintf("Привет, %s👋\n\n", username)
+	text += "Что бы вы хотели сделать?"
+
+	// Формируем кнопку с балансом
+	balanceText := fmt.Sprintf("Баланс %.0f₽", user.Balance)
+
+	// Создаем кнопки главного меню
+	var keyboardRows [][]tgbotapi.InlineKeyboardButton
+	
+	// Баланс
+	keyboardRows = append(keyboardRows, []tgbotapi.InlineKeyboardButton{
+		tgbotapi.NewInlineKeyboardButtonData("💰 " + balanceText, "balance"),
+	})
+	
+	// Купить
+	keyboardRows = append(keyboardRows, []tgbotapi.InlineKeyboardButton{
+		tgbotapi.NewInlineKeyboardButtonData("🚀 Купить", "buy_subscription"),
+	})
+	
+	// Пробный период (если включен и пользователь еще не использовал)
+	if b.config.Trial.Enabled {
+		// Проверяем, использовал ли пользователь пробный период
+		hasUsedTrial, err := b.subscriptionService.HasUsedTrial(user.ID)
+		if err == nil && !hasUsedTrial {
+			keyboardRows = append(keyboardRows, []tgbotapi.InlineKeyboardButton{
+				tgbotapi.NewInlineKeyboardButtonData("🎁 Пробный период", "trial"),
+			})
+		}
+	}
+	
+	// Моя подписка - прямая кнопка миниаппа
+	keyboardRows = append(keyboardRows, []tgbotapi.InlineKeyboardButton{
+		tgbotapi.NewInlineKeyboardButtonURL("🔒 Моя подписка", b.config.MiniApp.URL),
+	})
+	
+	// Рефералы и Промокод
+	keyboardRows = append(keyboardRows, []tgbotapi.InlineKeyboardButton{
+		tgbotapi.NewInlineKeyboardButtonData("🎁 Рефералы", "referrals"),
+		tgbotapi.NewInlineKeyboardButtonData("🎟️ Промокод", "promo_code"),
+	})
+	
+	// Язык и Статус
+	keyboardRows = append(keyboardRows, []tgbotapi.InlineKeyboardButton{
+		tgbotapi.NewInlineKeyboardButtonData("🌐 Язык", "language"),
+		tgbotapi.NewInlineKeyboardButtonData("📊 Статус", "status"),
+	})
+	
+	// Поддержка
+	keyboardRows = append(keyboardRows, []tgbotapi.InlineKeyboardButton{
+		tgbotapi.NewInlineKeyboardButtonData("🆘 Поддержка", "support"),
+	})
+
+	keyboard := tgbotapi.NewInlineKeyboardMarkup(keyboardRows...)
+
+	msg := tgbotapi.NewMessage(message.Chat.ID, text)
+	msg.ReplyMarkup = keyboard
+
+	// Отправляем сообщение через tgbotapi
+	bot, err := tgbotapi.NewBotAPI(b.config.BotToken)
+	if err != nil {
+		return fmt.Errorf("failed to create tgbotapi bot: %w", err)
+	}
+	
+	_, err = bot.Send(msg)
+	return err
 }
 
 // createMainMenuKeyboard создает главное меню
