@@ -60,7 +60,7 @@ func (a *App) Run() error {
 	)
 
 	// Создаем сервисы
-	userService := services.NewUserService(userRepo, remnawaveClient, a.logger)
+	userService := services.NewUserService(userRepo, remnawaveClient, a.logger, a.config)
 	subscriptionService := services.NewSubscriptionService(subscriptionRepo, remnawaveClient, a.logger)
 	paymentService := services.NewPaymentService(paymentRepo, userService, a.logger)
 

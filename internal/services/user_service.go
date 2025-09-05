@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"remnawave-tg-shop/internal/config"
 	"remnawave-tg-shop/internal/logger"
 	"remnawave-tg-shop/internal/models"
 	"remnawave-tg-shop/internal/repositories"
@@ -18,14 +19,16 @@ type userService struct {
 	userRepo        repositories.UserRepository
 	remnawaveClient *remnawave.Client
 	logger          logger.Logger
+	config          *config.Config
 }
 
 // NewUserService создает новый сервис пользователей
-func NewUserService(userRepo repositories.UserRepository, remnawaveClient *remnawave.Client, log logger.Logger) UserService {
+func NewUserService(userRepo repositories.UserRepository, remnawaveClient *remnawave.Client, log logger.Logger, cfg *config.Config) UserService {
 	return &userService{
 		userRepo:        userRepo,
 		remnawaveClient: remnawaveClient,
 		logger:          log,
+		config:          cfg,
 	}
 }
 
@@ -209,6 +212,12 @@ func (s *userService) SearchUsers(query string, limit int) ([]models.User, error
 
 // IsAdmin проверяет, является ли пользователь администратором
 func (s *userService) IsAdmin(telegramID int64) bool {
+	// Сначала проверяем ADMIN_TELEGRAM_ID из конфигурации
+	if s.config.Admin.TelegramID != 0 && s.config.Admin.TelegramID == telegramID {
+		return true
+	}
+
+	// Затем проверяем поле IsAdmin в базе данных
 	user, err := s.userRepo.GetByTelegramID(telegramID)
 	if err != nil || user == nil {
 		return false
