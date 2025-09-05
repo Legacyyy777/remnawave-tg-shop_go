@@ -22,13 +22,11 @@ services:
 
   # Remnawave Panel (если нужно в Docker)
   remnawave:
-    image: nginx:alpine
+    image: your-remnawave-image
     container_name: remnawave_panel
     restart: unless-stopped
     ports:
       - "3000:3000"
-    volumes:
-      - ./remnawave:/usr/share/nginx/html:ro
     networks:
       - remnawave_network
     profiles:

@@ -71,7 +71,7 @@ chmod +x deploy.sh
 # docker-compose.prod.yml
 services:
   remnawave:
-    image: your-remnawave-image
+    image: your-remnawave-image  # Ваш образ Remnawave с nginx
     container_name: remnawave_panel
     ports:
       - "3000:3000"
