@@ -608,7 +608,16 @@ func (b *Bot) handleMySubscriptionsCallback(query *tgbotapi.CallbackQuery, user 
 	text := "📱 Управление подписками\n\n"
 	text += "Нажмите на кнопку ниже, чтобы открыть приложение для управления вашими подписками."
 
-	b.editMessage(query.Message.Chat.ID, query.Message.MessageID, text, &keyboard)
+	// Используем sendMessage вместо editMessage для URL кнопок
+	msg := tgbotapi.NewMessage(query.Message.Chat.ID, text)
+	msg.ReplyMarkup = keyboard
+	msg.ParseMode = tgbotapi.ModeHTML
+	
+	_, err := b.api.Send(msg)
+	if err != nil {
+		b.logger.Error("Failed to send message", "error", err)
+	}
+	
 	b.answerCallbackQuery(query.ID, "📱 Открываем приложение")
 }
 
