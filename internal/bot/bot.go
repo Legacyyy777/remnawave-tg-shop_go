@@ -212,7 +212,7 @@ func (b *Bot) handleCallbackQueryData(query *tgbotapi.CallbackQuery, user *model
 		return b.handlePaymentCallbackTgBot(query, user)
 	default:
 		b.logger.Info("Unknown callback data", "data", data)
-		return nil
+	return nil
 	}
 }
 
@@ -266,16 +266,16 @@ func (b *Bot) authMiddleware(next telebot.HandlerFunc) telebot.HandlerFunc {
 
 		b.logger.Info("Request from user", "user_id", user.ID, "username", user.Username)
 
-		// Создаем или получаем пользователя
+	// Создаем или получаем пользователя
 		dbUser, err := b.userService.CreateOrGetUser(
 			user.ID,
 			user.Username,
 			user.FirstName,
 			user.LastName,
 			user.LanguageCode,
-		)
-		if err != nil {
-			b.logger.Error("Failed to create/get user", "error", err)
+	)
+	if err != nil {
+		b.logger.Error("Failed to create/get user", "error", err)
 			return c.Send("❌ Ошибка при получении данных пользователя")
 		}
 
@@ -611,7 +611,7 @@ func (b *Bot) handleAdminCommand(c telebot.Context) error {
 	if user == nil {
 		return c.Send("❌ Ошибка получения данных пользователя")
 	}
-
+		
 	if !b.userService.IsAdmin(user.TelegramID) {
 		return c.Send("❌ У вас нет прав администратора.")
 	}
@@ -699,7 +699,7 @@ func (b *Bot) handleBuySubscriptionCallback(c telebot.Context) error {
 	for i := 0; i < len(buttons); i += 2 {
 		if i+1 < len(buttons) {
 			rows = append(rows, telebot.Row{buttons[i], buttons[i+1]})
-		} else {
+	} else {
 			rows = append(rows, telebot.Row{buttons[i]})
 		}
 	}
