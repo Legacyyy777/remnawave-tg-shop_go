@@ -62,23 +62,42 @@ func (b *Bot) Start() error {
 func (b *Bot) HandleUpdate(update interface{}) error {
 	// Преобразуем обновление в формат telebot
 	if tgbotUpdate, ok := update.(tgbotapi.Update); ok {
-		// Создаем контекст для telebot
-		ctx := &telebot.Context{
-			Update: tgbotUpdate,
-			Bot:    b.api,
-		}
-		
-		// Обрабатываем обновление
-		return b.processUpdate(ctx)
+		// Обрабатываем обновление напрямую
+		return b.processUpdate(tgbotUpdate)
 	}
 	return nil
 }
 
 // processUpdate обрабатывает обновление
-func (b *Bot) processUpdate(ctx *telebot.Context) error {
+func (b *Bot) processUpdate(update tgbotapi.Update) error {
 	// Здесь можно добавить логику обработки обновлений
 	// Пока что просто логируем
-	b.logger.Info("Processing update", "update_id", ctx.Update.UpdateID)
+	b.logger.Info("Processing update", "update_id", update.UpdateID)
+	
+	// Обрабатываем сообщения
+	if update.Message != nil {
+		return b.handleMessage(update.Message)
+	}
+	
+	// Обрабатываем callback queries
+	if update.CallbackQuery != nil {
+		return b.handleCallbackQuery(update.CallbackQuery)
+	}
+	
+	return nil
+}
+
+// handleMessage обрабатывает сообщения
+func (b *Bot) handleMessage(message *tgbotapi.Message) error {
+	// Здесь будет логика обработки сообщений
+	b.logger.Info("Handling message", "chat_id", message.Chat.ID, "text", message.Text)
+	return nil
+}
+
+// handleCallbackQuery обрабатывает callback queries
+func (b *Bot) handleCallbackQuery(query *tgbotapi.CallbackQuery) error {
+	// Здесь будет логика обработки callback queries
+	b.logger.Info("Handling callback query", "chat_id", query.Message.Chat.ID, "data", query.Data)
 	return nil
 }
 
