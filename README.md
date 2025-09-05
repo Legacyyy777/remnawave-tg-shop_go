@@ -60,7 +60,7 @@ internal/
 
 1. **Клонируйте репозиторий**
 ```bash
-git clone https://github.com/your-username/remnawave-tg-shop.git
+git clone https://github.com/Legacyyy777/remnawave-tg-shop.git
 cd remnawave-tg-shop
 ```
 
