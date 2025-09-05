@@ -227,10 +227,14 @@ func (b *Bot) handleStartCommand(message *tgbotapi.Message, user *models.User, a
 		}
 	}
 	
-	// Моя подписка - прямая кнопка миниаппа
-	keyboardRows = append(keyboardRows, []tgbotapi.InlineKeyboardButton{
-		tgbotapi.NewInlineKeyboardButtonURL("🔒 Моя подписка", b.config.MiniApp.URL),
-	})
+	// Моя подписка - WebApp кнопка
+	webAppButton := tgbotapi.InlineKeyboardButton{
+		Text: "🔒 Моя подписка",
+		WebApp: &tgbotapi.WebApp{
+			URL: b.config.MiniApp.URL,
+		},
+	}
+	keyboardRows = append(keyboardRows, []tgbotapi.InlineKeyboardButton{webAppButton})
 	
 	// Рефералы и Промокод
 	keyboardRows = append(keyboardRows, []tgbotapi.InlineKeyboardButton{
@@ -251,8 +255,17 @@ func (b *Bot) handleStartCommand(message *tgbotapi.Message, user *models.User, a
 
 	keyboard := tgbotapi.NewInlineKeyboardMarkup(keyboardRows...)
 
+	// Убираем любую Reply клавиатуру
 	msg := tgbotapi.NewMessage(message.Chat.ID, text)
 	msg.ReplyMarkup = keyboard
+	msg.ParseMode = tgbotapi.ModeHTML
+	
+	// Убираем Reply клавиатуру
+	removeKeyboard := tgbotapi.NewRemoveKeyboard(true)
+	hideMsg := tgbotapi.NewMessage(message.Chat.ID, "")
+	hideMsg.ReplyMarkup = removeKeyboard
+	b.api.Send(hideMsg)
+	
 	b.api.Send(msg)
 }
 
@@ -414,8 +427,14 @@ func (b *Bot) handleAdminCommand(message *tgbotapi.Message, user *models.User) {
 
 // handleTextMessage обрабатывает обычные текстовые сообщения
 func (b *Bot) handleTextMessage(message *tgbotapi.Message, user *models.User) {
-	// Здесь можно добавить обработку обычных сообщений
-	// Например, ответы на вопросы, поиск и т.д.
+	switch message.Text {
+	case "🔙 Главное меню":
+		// Обрабатываем как команду /start
+		b.handleStartCommand(message, user, "")
+	default:
+		// Здесь можно добавить обработку других текстовых сообщений
+		// Например, промокодов, поиска и т.д.
+	}
 }
 
 // handleCallbackQuery обрабатывает нажатия на inline кнопки
@@ -595,20 +614,24 @@ func (b *Bot) handleBuySubscriptionCallback(query *tgbotapi.CallbackQuery, user 
 
 // handleMySubscriptionsCallback обрабатывает callback для моих подписки
 func (b *Bot) handleMySubscriptionsCallback(query *tgbotapi.CallbackQuery, user *models.User) {
-	// Создаем URL кнопку для миниаппа
-	keyboard := tgbotapi.NewInlineKeyboardMarkup(
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonURL("🔒 Моя подписка", b.config.MiniApp.URL),
-		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("🔙 Назад", "start"),
+	text := "📱 Управление подписками\n\n"
+	text += "Нажмите на кнопку ниже, чтобы открыть мини-приложение для управления вашими подписками."
+
+	// Создаем Reply Keyboard с WebApp кнопкой
+	webAppButton := tgbotapi.NewKeyboardButtonWebApp("🔒 Открыть мини-приложение", tgbotapi.WebApp{
+		URL: b.config.MiniApp.URL,
+	})
+	
+	keyboard := tgbotapi.NewReplyKeyboard(
+		tgbotapi.NewKeyboardButtonRow(webAppButton),
+		tgbotapi.NewKeyboardButtonRow(
+			tgbotapi.NewKeyboardButton("🔙 Главное меню"),
 		),
 	)
+	keyboard.OneTimeKeyboard = true
+	keyboard.ResizeKeyboard = true
 
-	text := "📱 Управление подписками\n\n"
-	text += "Нажмите на кнопку ниже, чтобы открыть приложение для управления вашими подписками."
-
-	// Используем sendMessage для URL кнопок
+	// Отправляем новое сообщение с Reply клавиатурой
 	msg := tgbotapi.NewMessage(query.Message.Chat.ID, text)
 	msg.ReplyMarkup = keyboard
 	msg.ParseMode = tgbotapi.ModeHTML
@@ -618,7 +641,7 @@ func (b *Bot) handleMySubscriptionsCallback(query *tgbotapi.CallbackQuery, user 
 		b.logger.Error("Failed to send message", "error", err)
 	}
 	
-	b.answerCallbackQuery(query.ID, "📱 Открываем приложение")
+	b.answerCallbackQuery(query.ID, "📱 Мини-приложение готово к открытию")
 }
 
 // handleReferralsCallback обрабатывает callback для рефералов
@@ -642,7 +665,13 @@ func (b *Bot) handleReferralsCallback(query *tgbotapi.CallbackQuery, user *model
 		}
 	}
 
-	b.editMessage(query.Message.Chat.ID, query.Message.MessageID, text, nil)
+	keyboard := tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("🔙 Назад", "start"),
+		),
+	)
+
+	b.editMessage(query.Message.Chat.ID, query.Message.MessageID, text, &keyboard)
 	b.answerCallbackQuery(query.ID, "👥 Рефералы загружены")
 }
 
@@ -686,7 +715,13 @@ func (b *Bot) handlePromoCodeCallback(query *tgbotapi.CallbackQuery, user *model
 	text += "• За участие в конкурсах\n\n"
 	text += "Просто отправьте промокод в чат."
 
-	b.editMessage(query.Message.Chat.ID, query.Message.MessageID, text, nil)
+	keyboard := tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("🔙 Назад", "start"),
+		),
+	)
+
+	b.editMessage(query.Message.Chat.ID, query.Message.MessageID, text, &keyboard)
 	b.answerCallbackQuery(query.ID, "🎟️ Введите промокод")
 }
 
@@ -708,6 +743,9 @@ func (b *Bot) handleLanguageCallback(query *tgbotapi.CallbackQuery, user *models
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("🇩🇪 Deutsch", "lang_de"),
 			tgbotapi.NewInlineKeyboardButtonData("🇫🇷 Français", "lang_fr"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("🔙 Назад", "start"),
 		),
 	)
 
@@ -739,7 +777,13 @@ func (b *Bot) handleStatusCallback(query *tgbotapi.CallbackQuery, user *models.U
 		text += "Нет активных подписок\n"
 	}
 
-	b.editMessage(query.Message.Chat.ID, query.Message.MessageID, text, nil)
+	keyboard := tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("🔙 Назад", "start"),
+		),
+	)
+
+	b.editMessage(query.Message.Chat.ID, query.Message.MessageID, text, &keyboard)
 	b.answerCallbackQuery(query.ID, "📊 Статус загружен")
 }
 
@@ -757,7 +801,13 @@ func (b *Bot) handleSupportCallback(query *tgbotapi.CallbackQuery, user *models.
 	text += "• Проблемы с подключением\n\n"
 	text += "Мы ответим в течение 15 минут!"
 
-	b.editMessage(query.Message.Chat.ID, query.Message.MessageID, text, nil)
+	keyboard := tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("🔙 Назад", "start"),
+		),
+	)
+
+	b.editMessage(query.Message.Chat.ID, query.Message.MessageID, text, &keyboard)
 	b.answerCallbackQuery(query.ID, "💬 Поддержка готова помочь")
 }
 
@@ -937,10 +987,14 @@ func (b *Bot) handleStartCallback(query *tgbotapi.CallbackQuery, user *models.Us
 		}
 	}
 	
-	// Моя подписка - прямая кнопка миниаппа
-	keyboardRows = append(keyboardRows, []tgbotapi.InlineKeyboardButton{
-		tgbotapi.NewInlineKeyboardButtonURL("🔒 Моя подписка", b.config.MiniApp.URL),
-	})
+	// Моя подписка - WebApp кнопка
+	webAppButton := tgbotapi.InlineKeyboardButton{
+		Text: "🔒 Моя подписка",
+		WebApp: &tgbotapi.WebApp{
+			URL: b.config.MiniApp.URL,
+		},
+	}
+	keyboardRows = append(keyboardRows, []tgbotapi.InlineKeyboardButton{webAppButton})
 	
 	// Рефералы и Промокод
 	keyboardRows = append(keyboardRows, []tgbotapi.InlineKeyboardButton{
