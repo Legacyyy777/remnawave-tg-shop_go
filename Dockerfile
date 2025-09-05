@@ -17,8 +17,8 @@ RUN go mod download
 # Copy source code
 COPY . .
 
-# Generate go.sum
-RUN go mod tidy
+# Generate go.sum and clean module cache
+RUN go mod tidy && go clean -modcache
 
 # Create empty .env file for final stage
 RUN echo "# Environment variables will be set via docker-compose" > /tmp/.env

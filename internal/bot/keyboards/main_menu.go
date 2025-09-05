@@ -6,7 +6,6 @@ import (
 	"remnawave-tg-shop/internal/models"
 	"remnawave-tg-shop/internal/services"
 
-	"gopkg.in/telebot.v3"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
@@ -51,7 +50,7 @@ func (k *MainMenuKeyboard) Create(user *models.User) tgbotapi.InlineKeyboardMark
 	
 	// Моя подписка - Mini App кнопка
 	keyboardRows = append(keyboardRows, []tgbotapi.InlineKeyboardButton{
-		tgbotapi.NewInlineKeyboardButtonWebApp("🔒 Моя подписка", tgbotapi.WebAppInfo{URL: k.config.MiniApp.URL}),
+		tgbotapi.NewInlineKeyboardButtonWebApp("🔒 Моя подписка", &tgbotapi.WebAppInfo{URL: k.config.MiniApp.URL}),
 	})
 	
 	// Рефералы и Промокод
