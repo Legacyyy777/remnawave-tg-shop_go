@@ -2,6 +2,7 @@ package commands
 
 import (
 	"fmt"
+	"remnawave-tg-shop/internal/bot/keyboards"
 	"remnawave-tg-shop/internal/bot/utils"
 	"remnawave-tg-shop/internal/config"
 	"remnawave-tg-shop/internal/models"
@@ -21,6 +22,7 @@ type AdminHandler struct {
 	promoCodeService    services.IPromoCodeService
 	notificationService services.INotificationService
 	activityLogService  services.IActivityLogService
+	adminKeyboard       *keyboards.AdminMenuKeyboard
 }
 
 // NewAdminHandler создает новый AdminHandler
@@ -41,6 +43,7 @@ func NewAdminHandler(
 		promoCodeService:    promoCodeService,
 		notificationService: notificationService,
 		activityLogService:  activityLogService,
+		adminKeyboard:       keyboards.NewAdminMenuKeyboard(),
 	}
 }
 
@@ -92,19 +95,10 @@ func (h *AdminHandler) Handle(message *tgbotapi.Message, user *models.User, args
 // showAdminMenu показывает главное меню админ-панели
 func (h *AdminHandler) showAdminMenu(message *tgbotapi.Message, _ *models.User) error {
 	text := "🔧 *Админ-панель*\n\n"
-	text += "Доступные команды:\n\n"
-	text += "📊 `/admin stats` - Статистика\n"
-	text += "👥 `/admin users [поиск]` - Список пользователей\n"
-	text += "👤 `/admin user <id>` - Информация о пользователе\n"
-	text += "🚫 `/admin block <id>` - Заблокировать пользователя\n"
-	text += "✅ `/admin unblock <id>` - Разблокировать пользователя\n"
-	text += "💰 `/admin balance <id> <сумма>` - Управление балансом\n"
-	text += "🎟️ `/admin promo` - Управление промокодами\n"
-	text += "📢 `/admin notify <сообщение>` - Отправить уведомление\n"
-	text += "📋 `/admin logs [пользователь]` - Логи активности\n"
-	text += "❓ `/admin help` - Помощь"
+	text += "Выберите раздел для управления ботом:"
 
-	return utils.SendMessage(message.Chat.ID, text, h.config.BotToken)
+	keyboard := h.adminKeyboard.CreateMainMenu()
+	return utils.SendMessageWithKeyboard(message.Chat.ID, text, keyboard, h.config.BotToken)
 }
 
 // showStats показывает статистику
@@ -338,4 +332,9 @@ func (h *AdminHandler) showAdminHelp(message *tgbotapi.Message, _ *models.User) 
 	text += "`/admin logs <id>` - Логи пользователя"
 
 	return utils.SendMessage(message.Chat.ID, text, h.config.BotToken)
+}
+
+// GetAdminKeyboard возвращает клавиатуру админ-панели
+func (h *AdminHandler) GetAdminKeyboard() *keyboards.AdminMenuKeyboard {
+	return h.adminKeyboard
 }
