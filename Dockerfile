@@ -10,12 +10,15 @@ RUN apk add --no-cache git
 # Copy go mod files
 COPY go.mod ./
 
-# Download dependencies and generate go.sum
+# Download dependencies
 ENV GOSUMDB=off
-RUN go mod download && go mod tidy
+RUN go mod download
 
 # Copy source code
 COPY . .
+
+# Generate go.sum
+RUN go mod tidy
 
 # Build the application
 ENV GOSUMDB=off
