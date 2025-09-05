@@ -124,5 +124,5 @@ volumes:
     driver: local
 
 networks:
-  remnawave_network:
+  remnawave-network:
     driver: bridge
