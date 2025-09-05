@@ -15,7 +15,7 @@ import (
 	"remnawave-tg-shop/internal/logger"
 
 	"github.com/gin-gonic/gin"
-	"gopkg.in/telebot.v3"
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"remnawave-tg-shop/internal/repositories"
 	"remnawave-tg-shop/internal/services"
 	"remnawave-tg-shop/internal/services/remnawave"
