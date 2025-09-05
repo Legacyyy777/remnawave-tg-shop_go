@@ -227,9 +227,9 @@ func (b *Bot) handleStartCommand(message *tgbotapi.Message, user *models.User, a
 		}
 	}
 	
-	// Моя подписка
+	// Моя подписка - прямая кнопка миниаппа
 	keyboardRows = append(keyboardRows, []tgbotapi.InlineKeyboardButton{
-		tgbotapi.NewInlineKeyboardButtonData("🔒 Моя подписка", "my_subscriptions"),
+		tgbotapi.NewInlineKeyboardButtonURL("🔒 Моя подписка", b.config.MiniApp.URL),
 	})
 	
 	// Рефералы и Промокод
@@ -937,9 +937,9 @@ func (b *Bot) handleStartCallback(query *tgbotapi.CallbackQuery, user *models.Us
 		}
 	}
 	
-	// Моя подписка
+	// Моя подписка - прямая кнопка миниаппа
 	keyboardRows = append(keyboardRows, []tgbotapi.InlineKeyboardButton{
-		tgbotapi.NewInlineKeyboardButtonData("🔒 Моя подписка", "my_subscriptions"),
+		tgbotapi.NewInlineKeyboardButtonURL("🔒 Моя подписка", b.config.MiniApp.URL),
 	})
 	
 	// Рефералы и Промокод
