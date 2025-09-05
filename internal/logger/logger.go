@@ -97,9 +97,11 @@ func (l *logrusLogger) Fatalf(format string, args ...interface{}) {
 }
 
 func (l *logrusLogger) WithField(key string, value interface{}) Logger {
-	return &logrusLogger{logger: l.logger.WithField(key, value)}
+	entry := l.logger.WithField(key, value)
+	return &logrusLogger{logger: entry.Logger}
 }
 
 func (l *logrusLogger) WithFields(fields map[string]interface{}) Logger {
-	return &logrusLogger{logger: l.logger.WithFields(fields)}
+	entry := l.logger.WithFields(fields)
+	return &logrusLogger{logger: entry.Logger}
 }
