@@ -47,7 +47,7 @@ func NewAdminHandler(
 // Handle обрабатывает админские команды
 func (h *AdminHandler) Handle(message *tgbotapi.Message, user *models.User, args string) error {
 	// Проверяем, является ли пользователь админом
-	if !h.isAdmin(user.TelegramID) {
+	if !h.userService.IsAdmin(user.TelegramID) {
 		return utils.SendMessage(message.Chat.ID, "❌ У вас нет прав администратора", h.config.BotToken)
 	}
 
@@ -89,18 +89,8 @@ func (h *AdminHandler) Handle(message *tgbotapi.Message, user *models.User, args
 	}
 }
 
-// isAdmin проверяет, является ли пользователь админом
-func (h *AdminHandler) isAdmin(telegramID int64) bool {
-	for _, adminID := range h.config.Admin.TelegramIDs {
-		if adminID == telegramID {
-			return true
-		}
-	}
-	return false
-}
-
 // showAdminMenu показывает главное меню админ-панели
-func (h *AdminHandler) showAdminMenu(message *tgbotapi.Message, user *models.User) error {
+func (h *AdminHandler) showAdminMenu(message *tgbotapi.Message, _ *models.User) error {
 	text := "🔧 *Админ-панель*\n\n"
 	text += "Доступные команды:\n\n"
 	text += "📊 `/admin stats` - Статистика\n"
@@ -118,7 +108,7 @@ func (h *AdminHandler) showAdminMenu(message *tgbotapi.Message, user *models.Use
 }
 
 // showStats показывает статистику
-func (h *AdminHandler) showStats(message *tgbotapi.Message, user *models.User) error {
+func (h *AdminHandler) showStats(message *tgbotapi.Message, _ *models.User) error {
 	// Получаем статистику (здесь нужно будет реализовать методы в сервисах)
 	text := "📊 *Статистика бота*\n\n"
 	text += "👥 Пользователи: 0\n"
@@ -132,7 +122,7 @@ func (h *AdminHandler) showStats(message *tgbotapi.Message, user *models.User) e
 }
 
 // showUsers показывает список пользователей
-func (h *AdminHandler) showUsers(message *tgbotapi.Message, user *models.User, searchQuery string) error {
+func (h *AdminHandler) showUsers(message *tgbotapi.Message, _ *models.User, searchQuery string) error {
 	text := "👥 *Список пользователей*\n\n"
 
 	if searchQuery != "" {
@@ -149,7 +139,7 @@ func (h *AdminHandler) showUsers(message *tgbotapi.Message, user *models.User, s
 }
 
 // showUser показывает информацию о пользователе
-func (h *AdminHandler) showUser(message *tgbotapi.Message, user *models.User, userIDStr string) error {
+func (h *AdminHandler) showUser(message *tgbotapi.Message, _ *models.User, userIDStr string) error {
 	if userIDStr == "" {
 		return utils.SendMessage(message.Chat.ID, "❌ Укажите ID пользователя", h.config.BotToken)
 	}
@@ -164,7 +154,7 @@ func (h *AdminHandler) showUser(message *tgbotapi.Message, user *models.User, us
 		return utils.SendMessage(message.Chat.ID, "❌ Пользователь не найден", h.config.BotToken)
 	}
 
-	text := fmt.Sprintf("👤 *Информация о пользователе*\n\n")
+	text := "👤 *Информация о пользователе*\n\n"
 	text += fmt.Sprintf("🆔 ID: %d\n", targetUser.TelegramID)
 	text += fmt.Sprintf("👤 Имя: %s\n", targetUser.GetFullName())
 	text += fmt.Sprintf("📱 Username: @%s\n", targetUser.Username)
@@ -273,7 +263,7 @@ func (h *AdminHandler) manageBalance(message *tgbotapi.Message, user *models.Use
 }
 
 // managePromoCodes управляет промокодами
-func (h *AdminHandler) managePromoCodes(message *tgbotapi.Message, user *models.User, args string) error {
+func (h *AdminHandler) managePromoCodes(message *tgbotapi.Message, _ *models.User, _ string) error {
 	text := "🎟️ *Управление промокодами*\n\n"
 	text += "Доступные команды:\n"
 	text += "• `/admin promo create <код> <тип> <значение> <макс_использований>` - Создать промокод\n"
@@ -308,7 +298,7 @@ func (h *AdminHandler) sendNotification(message *tgbotapi.Message, user *models.
 }
 
 // showLogs показывает логи активности
-func (h *AdminHandler) showLogs(message *tgbotapi.Message, user *models.User, userIDStr string) error {
+func (h *AdminHandler) showLogs(message *tgbotapi.Message, _ *models.User, userIDStr string) error {
 	text := "📋 *Логи активности*\n\n"
 
 	if userIDStr != "" {
@@ -325,7 +315,7 @@ func (h *AdminHandler) showLogs(message *tgbotapi.Message, user *models.User, us
 }
 
 // showAdminHelp показывает справку по админским командам
-func (h *AdminHandler) showAdminHelp(message *tgbotapi.Message, user *models.User) error {
+func (h *AdminHandler) showAdminHelp(message *tgbotapi.Message, _ *models.User) error {
 	text := "❓ *Справка по админским командам*\n\n"
 	text += "🔧 *Основные команды:*\n"
 	text += "`/admin` - Главное меню админ-панели\n"
