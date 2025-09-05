@@ -20,6 +20,9 @@ COPY . .
 # Generate go.sum
 RUN go mod tidy
 
+# Copy env.example for final stage
+COPY env.example /tmp/env.example
+
 # Build the application
 ENV GOSUMDB=off
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main ./cmd/main.go
@@ -37,7 +40,7 @@ WORKDIR /root/
 COPY --from=builder /app/main .
 
 # Copy environment file
-COPY env.example .env
+COPY --from=builder /tmp/env.example .env
 
 # Expose port
 EXPOSE 8080
