@@ -108,15 +108,15 @@ func (b *Bot) handleMessage(message *tgbotapi.Message) error {
 		case "start":
 			return b.handleStartCommandTgBot(message, user, args)
 		case "help":
-			return b.handleHelpCommand(message, user, args)
+			return b.handleHelpCommandTgBot(message, user, args)
 		case "balance":
-			return b.handleBalanceCommand(message, user, args)
+			return b.handleBalanceCommandTgBot(message, user, args)
 		case "subscriptions":
-			return b.handleSubscriptionsCommand(message, user, args)
+			return b.handleSubscriptionsCommandTgBot(message, user, args)
 		case "referrals":
-			return b.handleReferralsCommand(message, user, args)
+			return b.handleReferralsCommandTgBot(message, user, args)
 		case "admin":
-			return b.handleAdminCommand(message, user, args)
+			return b.handleAdminCommandTgBot(message, user, args)
 		default:
 			return b.handleUnknownCommand(message, user, args)
 		}
@@ -1106,4 +1106,114 @@ func (b *Bot) handlePaymentCallbackTgBot(query *tgbotapi.CallbackQuery, user *mo
 	// Пока что просто логируем
 	b.logger.Info("Handling payment callback", "user_id", user.ID, "data", query.Data)
 	return nil
+}
+
+// ===== Функции команд для tgbotapi =====
+
+// handleHelpCommandTgBot обрабатывает команду /help
+func (b *Bot) handleHelpCommandTgBot(message *tgbotapi.Message, user *models.User, args string) error {
+	text := "🤖 Доступные команды:\n\n"
+	text += "/start - Главное меню\n"
+	text += "/help - Список команд\n"
+	text += "/balance - Баланс\n"
+	text += "/subscriptions - Мои подписки\n"
+	text += "/referrals - Рефералы\n"
+	text += "/admin - Админ панель\n\n"
+	text += "Используйте кнопки в меню для навигации."
+
+	msg := tgbotapi.NewMessage(message.Chat.ID, text)
+	
+	// Отправляем сообщение через tgbotapi
+	bot, err := tgbotapi.NewBotAPI(b.config.BotToken)
+	if err != nil {
+		return fmt.Errorf("failed to create tgbotapi bot: %w", err)
+	}
+	
+	_, err = bot.Send(msg)
+	return err
+}
+
+// handleBalanceCommandTgBot обрабатывает команду /balance
+func (b *Bot) handleBalanceCommandTgBot(message *tgbotapi.Message, user *models.User, args string) error {
+	text := fmt.Sprintf("💰 Ваш баланс: %.0f₽", user.Balance)
+	
+	msg := tgbotapi.NewMessage(message.Chat.ID, text)
+	
+	// Отправляем сообщение через tgbotapi
+	bot, err := tgbotapi.NewBotAPI(b.config.BotToken)
+	if err != nil {
+		return fmt.Errorf("failed to create tgbotapi bot: %w", err)
+	}
+	
+	_, err = bot.Send(msg)
+	return err
+}
+
+// handleSubscriptionsCommandTgBot обрабатывает команду /subscriptions
+func (b *Bot) handleSubscriptionsCommandTgBot(message *tgbotapi.Message, user *models.User, args string) error {
+	text := "🔒 Ваши подписки:\n\n"
+	text += "Для просмотра и управления подписками используйте кнопку 'Моя подписка' в главном меню."
+	
+	msg := tgbotapi.NewMessage(message.Chat.ID, text)
+	
+	// Отправляем сообщение через tgbotapi
+	bot, err := tgbotapi.NewBotAPI(b.config.BotToken)
+	if err != nil {
+		return fmt.Errorf("failed to create tgbotapi bot: %w", err)
+	}
+	
+	_, err = bot.Send(msg)
+	return err
+}
+
+// handleReferralsCommandTgBot обрабатывает команду /referrals
+func (b *Bot) handleReferralsCommandTgBot(message *tgbotapi.Message, user *models.User, args string) error {
+	text := "🎁 Реферальная программа:\n\n"
+	text += "Приглашайте друзей и получайте бонусы!\n"
+	text += "Ваша реферальная ссылка: https://t.me/" + b.config.BotToken + "?start=" + user.ReferralCode
+	
+	msg := tgbotapi.NewMessage(message.Chat.ID, text)
+	
+	// Отправляем сообщение через tgbotapi
+	bot, err := tgbotapi.NewBotAPI(b.config.BotToken)
+	if err != nil {
+		return fmt.Errorf("failed to create tgbotapi bot: %w", err)
+	}
+	
+	_, err = bot.Send(msg)
+	return err
+}
+
+// handleAdminCommandTgBot обрабатывает команду /admin
+func (b *Bot) handleAdminCommandTgBot(message *tgbotapi.Message, user *models.User, args string) error {
+	// Проверяем, является ли пользователь админом
+	if !b.userService.IsAdmin(user.TelegramID) {
+		text := "❌ У вас нет прав администратора."
+		
+		msg := tgbotapi.NewMessage(message.Chat.ID, text)
+		
+		// Отправляем сообщение через tgbotapi
+		bot, err := tgbotapi.NewBotAPI(b.config.BotToken)
+		if err != nil {
+			return fmt.Errorf("failed to create tgbotapi bot: %w", err)
+		}
+		
+		_, err = bot.Send(msg)
+		return err
+	}
+	
+	text := "👑 Админ панель:\n\n"
+	text += "Добро пожаловать в админ панель!\n"
+	text += "Здесь будут доступны административные функции."
+	
+	msg := tgbotapi.NewMessage(message.Chat.ID, text)
+	
+	// Отправляем сообщение через tgbotapi
+	bot, err := tgbotapi.NewBotAPI(b.config.BotToken)
+	if err != nil {
+		return fmt.Errorf("failed to create tgbotapi bot: %w", err)
+	}
+	
+	_, err = bot.Send(msg)
+	return err
 }
