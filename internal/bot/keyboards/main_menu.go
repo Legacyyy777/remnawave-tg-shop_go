@@ -6,7 +6,7 @@ import (
 	"remnawave-tg-shop/internal/models"
 	"remnawave-tg-shop/internal/services"
 
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/mymmrac/telego"
 )
 
 // MainMenuKeyboard создает главное меню
@@ -24,51 +24,82 @@ func NewMainMenuKeyboard(config *config.Config, subscriptionService services.Sub
 }
 
 // Create создает клавиатуру главного меню
-func (k *MainMenuKeyboard) Create(user *models.User) tgbotapi.InlineKeyboardMarkup {
-	var keyboardRows [][]tgbotapi.InlineKeyboardButton
+func (k *MainMenuKeyboard) Create(user *models.User) *telego.InlineKeyboardMarkup {
+	var keyboardRows [][]telego.InlineKeyboardButton
 	
 	// Баланс
 	balanceText := fmt.Sprintf("💰 Баланс %.0f₽", user.Balance)
-	keyboardRows = append(keyboardRows, []tgbotapi.InlineKeyboardButton{
-		tgbotapi.NewInlineKeyboardButtonData(balanceText, "balance"),
+	keyboardRows = append(keyboardRows, []telego.InlineKeyboardButton{
+		{
+			Text:         balanceText,
+			CallbackData: "balance",
+		},
 	})
 	
 	// Купить
-	keyboardRows = append(keyboardRows, []tgbotapi.InlineKeyboardButton{
-		tgbotapi.NewInlineKeyboardButtonData("🚀 Купить", "buy_subscription"),
+	keyboardRows = append(keyboardRows, []telego.InlineKeyboardButton{
+		{
+			Text:         "🚀 Купить",
+			CallbackData: "buy_subscription",
+		},
 	})
 	
 	// Пробный период (если включен и пользователь еще не использовал)
 	if k.config.Trial.Enabled {
 		hasUsedTrial, err := k.subscriptionService.HasUsedTrial(user.ID)
 		if err == nil && !hasUsedTrial {
-			keyboardRows = append(keyboardRows, []tgbotapi.InlineKeyboardButton{
-				tgbotapi.NewInlineKeyboardButtonData("🎁 Пробный период", "trial"),
+			keyboardRows = append(keyboardRows, []telego.InlineKeyboardButton{
+				{
+					Text:         "🎁 Пробный период",
+					CallbackData: "trial",
+				},
 			})
 		}
 	}
 	
 	// Моя подписка - Mini App кнопка
-	button := tgbotapi.NewInlineKeyboardButtonData("🔒 Моя подписка", "")
-	button.WebApp = &tgbotapi.WebAppInfo{URL: k.config.MiniApp.URL}
-	keyboardRows = append(keyboardRows, []tgbotapi.InlineKeyboardButton{button})
+	keyboardRows = append(keyboardRows, []telego.InlineKeyboardButton{
+		{
+			Text: "🔒 Моя подписка",
+			WebApp: &telego.WebAppInfo{
+				URL: k.config.MiniApp.URL,
+			},
+		},
+	})
 	
 	// Рефералы и Промокод
-	keyboardRows = append(keyboardRows, []tgbotapi.InlineKeyboardButton{
-		tgbotapi.NewInlineKeyboardButtonData("🎁 Рефералы", "referrals"),
-		tgbotapi.NewInlineKeyboardButtonData("🎟️ Промокод", "promo_code"),
+	keyboardRows = append(keyboardRows, []telego.InlineKeyboardButton{
+		{
+			Text:         "🎁 Рефералы",
+			CallbackData: "referrals",
+		},
+		{
+			Text:         "🎟️ Промокод",
+			CallbackData: "promo_code",
+		},
 	})
 	
 	// Язык и Статус
-	keyboardRows = append(keyboardRows, []tgbotapi.InlineKeyboardButton{
-		tgbotapi.NewInlineKeyboardButtonData("🌐 Язык", "language"),
-		tgbotapi.NewInlineKeyboardButtonData("📊 Статус", "status"),
+	keyboardRows = append(keyboardRows, []telego.InlineKeyboardButton{
+		{
+			Text:         "🌐 Язык",
+			CallbackData: "language",
+		},
+		{
+			Text:         "📊 Статус",
+			CallbackData: "status",
+		},
 	})
 	
 	// Поддержка
-	keyboardRows = append(keyboardRows, []tgbotapi.InlineKeyboardButton{
-		tgbotapi.NewInlineKeyboardButtonData("🆘 Поддержка", "support"),
+	keyboardRows = append(keyboardRows, []telego.InlineKeyboardButton{
+		{
+			Text:         "🆘 Поддержка",
+			CallbackData: "support",
+		},
 	})
 
-	return tgbotapi.NewInlineKeyboardMarkup(keyboardRows...)
+	return &telego.InlineKeyboardMarkup{
+		InlineKeyboard: keyboardRows,
+	}
 }
