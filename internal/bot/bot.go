@@ -2,7 +2,6 @@ package bot
 
 import (
 	"fmt"
-	"strings"
 	"time"
 
 	"remnawave-tg-shop/internal/config"
