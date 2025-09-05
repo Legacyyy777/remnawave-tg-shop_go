@@ -95,6 +95,7 @@ type PaymentConfig struct {
 
 type TributeConfig struct {
 	WebhookURL string
+	AppURL     string
 }
 
 type YooKassaConfig struct {
@@ -198,6 +199,7 @@ func Load() (*Config, error) {
 
 	// Payments
 	cfg.Payments.Tribute.WebhookURL = getEnv("TRIBUTE_WEBHOOK_URL", "")
+	cfg.Payments.Tribute.AppURL = getEnv("TRIBUTE_APP_URL", "https://t.me/tribute/app?startapp=duka")
 	cfg.Payments.YooKassa.ShopID = getEnv("YOOKASSA_SHOP_ID", "")
 	cfg.Payments.YooKassa.SecretKey = getEnv("YOOKASSA_SECRET_KEY", "")
 	cfg.Payments.YooKassa.WebhookURL = getEnv("YOOKASSA_WEBHOOK_URL", "")
@@ -318,22 +320,6 @@ func getEnvAsInt(key string, defaultValue int) int {
 			return intValue
 		}
 	}
-	return defaultValue
-}
-
-func getEnvAsInt64(key string, defaultValue int64) int64 {
-	value := os.Getenv(key)
-	fmt.Printf("DEBUG getEnvAsInt64: key='%s', value='%s', empty=%t\n", key, value, value == "")
-
-	if value != "" {
-		if intValue, err := strconv.ParseInt(value, 10, 64); err == nil {
-			fmt.Printf("DEBUG getEnvAsInt64: parsed successfully: %d\n", intValue)
-			return intValue
-		} else {
-			fmt.Printf("DEBUG getEnvAsInt64: parse error: %v\n", err)
-		}
-	}
-	fmt.Printf("DEBUG getEnvAsInt64: using default value: %d\n", defaultValue)
 	return defaultValue
 }
 

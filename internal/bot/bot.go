@@ -184,6 +184,14 @@ func (b *Bot) handleCallbackQueryData(query *tgbotapi.CallbackQuery, user *model
 		return b.handleBuySubscription(query, user)
 	case strings.HasPrefix(data, "subscription:"):
 		return b.handleSubscriptionSelection(query, user)
+	case data == "payment_tribute":
+		return b.handleTributePayment(query, user)
+	case data == "payment_stars":
+		return b.handleStarsPayment(query, user)
+	case data == "payment_yookassa":
+		return b.handleYooKassaPayment(query, user)
+	case data == "payment_cryptopay":
+		return b.handleCryptoPayPayment(query, user)
 	case data == "start":
 		return b.handleStartCallback(query, user)
 	case strings.HasPrefix(data, "promo_code:"):
@@ -313,6 +321,70 @@ func (b *Bot) handleSubscriptionSelection(query *tgbotapi.CallbackQuery, user *m
 	keyboard := tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("🔙 Главное меню", "start"),
+		),
+	)
+
+	return utils.SendMessageWithKeyboard(query.Message.Chat.ID, text, keyboard, b.config.BotToken)
+}
+
+// handleTributePayment обрабатывает платеж через Tribute
+func (b *Bot) handleTributePayment(query *tgbotapi.CallbackQuery, _ *models.User) error {
+	text := "💎 *Пополнение через Tribute*\n\n"
+	text += "Для пополнения баланса перейдите по ссылке:\n\n"
+	text += "🔗 " + b.config.Payments.Tribute.AppURL + "\n\n"
+	text += "После успешного платежа средства будут автоматически зачислены на ваш баланс."
+
+	keyboard := tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonURL("💎 Перейти к оплате", b.config.Payments.Tribute.AppURL),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("🔙 Назад", "balance"),
+		),
+	)
+
+	return utils.SendMessageWithKeyboard(query.Message.Chat.ID, text, keyboard, b.config.BotToken)
+}
+
+// handleStarsPayment обрабатывает платеж через Telegram Stars
+func (b *Bot) handleStarsPayment(query *tgbotapi.CallbackQuery, _ *models.User) error {
+	text := "⭐ *Пополнение через Telegram Stars*\n\n"
+	text += "Функция пополнения через Telegram Stars временно недоступна.\n"
+	text += "Используйте другие способы оплаты."
+
+	keyboard := tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("🔙 Назад", "balance"),
+		),
+	)
+
+	return utils.SendMessageWithKeyboard(query.Message.Chat.ID, text, keyboard, b.config.BotToken)
+}
+
+// handleYooKassaPayment обрабатывает платеж через ЮKassa
+func (b *Bot) handleYooKassaPayment(query *tgbotapi.CallbackQuery, _ *models.User) error {
+	text := "💳 *Пополнение через ЮKassa*\n\n"
+	text += "Функция пополнения через ЮKassa временно недоступна.\n"
+	text += "Используйте другие способы оплаты."
+
+	keyboard := tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("🔙 Назад", "balance"),
+		),
+	)
+
+	return utils.SendMessageWithKeyboard(query.Message.Chat.ID, text, keyboard, b.config.BotToken)
+}
+
+// handleCryptoPayPayment обрабатывает платеж через CryptoPay
+func (b *Bot) handleCryptoPayPayment(query *tgbotapi.CallbackQuery, _ *models.User) error {
+	text := "₿ *Пополнение через CryptoPay*\n\n"
+	text += "Функция пополнения через CryptoPay временно недоступна.\n"
+	text += "Используйте другие способы оплаты."
+
+	keyboard := tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("🔙 Назад", "balance"),
 		),
 	)
 
