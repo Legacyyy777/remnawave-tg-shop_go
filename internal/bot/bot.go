@@ -109,8 +109,11 @@ func (b *Bot) handleUpdate(update tgbotapi.Update) {
 
 // handleMessage обрабатывает сообщения
 func (b *Bot) handleMessage(message *tgbotapi.Message) {
+	b.logger.Info("Received message", "chat_id", message.Chat.ID, "text", message.Text, "from", message.From.UserName)
+	
 	// Игнорируем старые сообщения
 	if message.Date < int(time.Now().Unix()-300) {
+		b.logger.Info("Ignoring old message", "date", message.Date, "now", time.Now().Unix())
 		return
 	}
 
@@ -168,6 +171,8 @@ func (b *Bot) handleCommand(message *tgbotapi.Message, user *models.User) {
 
 // handleStartCommand обрабатывает команду /start
 func (b *Bot) handleStartCommand(message *tgbotapi.Message, user *models.User, args string) {
+	b.logger.Info("Handling start command", "chat_id", message.Chat.ID, "user_id", user.ID)
+	
 	text := "🎉 Добро пожаловать в Remnawave Shop!\n\n"
 	text += "Здесь вы можете купить подписки на VPN серверы.\n\n"
 	text += "📋 Доступные команды:\n"
@@ -401,11 +406,14 @@ func (b *Bot) handleCallbackQuery(query *tgbotapi.CallbackQuery) {
 
 // sendMessage отправляет сообщение пользователю
 func (b *Bot) sendMessage(chatID int64, text string) {
+	b.logger.Info("Sending message", "chat_id", chatID, "text", text)
 	msg := tgbotapi.NewMessage(chatID, text)
 	msg.ParseMode = tgbotapi.ModeHTML
 	_, err := b.api.Send(msg)
 	if err != nil {
 		b.logger.Error("Failed to send message", "error", err, "chat_id", chatID)
+	} else {
+		b.logger.Info("Message sent successfully", "chat_id", chatID)
 	}
 }
 
