@@ -1,0 +1,104 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: remnawave_bot_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: remnawave_bot
+      POSTGRES_USER: remnawave_bot
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-remnawave_bot_password}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - remnawave_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U remnawave_bot -d remnawave_bot"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Remnawave Panel (если нужно в Docker)
+  remnawave:
+    image: nginx:alpine
+    container_name: remnawave_panel
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./remnawave:/usr/share/nginx/html:ro
+    networks:
+      - remnawave_network
+    profiles:
+      - with-remnawave
+
+  # Telegram Bot Application
+  bot:
+    build: .
+    container_name: remnawave_bot
+    restart: unless-stopped
+    environment:
+      # Database
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: remnawave_bot
+      DB_PASSWORD: ${DB_PASSWORD:-remnawave_bot_password}
+      DB_NAME: remnawave_bot
+      DB_SSL_MODE: disable
+      
+      # Telegram Bot
+      BOT_TOKEN: ${BOT_TOKEN}
+      BOT_WEBHOOK_URL: ${BOT_WEBHOOK_URL:-}
+      BOT_WEBHOOK_PORT: 8080
+      
+      # Remnawave API
+      REMNAWAVE_API_URL: ${REMNAWAVE_API_URL:-http://remnawave:3000/api}
+      REMNAWAVE_API_KEY: ${REMNAWAVE_API_KEY}
+      REMNAWAVE_SECRET_KEY: ${REMNAWAVE_SECRET_KEY:-}
+      
+      # Payment Systems
+      TRIBUTE_WEBHOOK_URL: ${TRIBUTE_WEBHOOK_URL:-}
+      YOOKASSA_SHOP_ID: ${YOOKASSA_SHOP_ID:-}
+      YOOKASSA_SECRET_KEY: ${YOOKASSA_SECRET_KEY:-}
+      YOOKASSA_WEBHOOK_URL: ${YOOKASSA_WEBHOOK_URL:-}
+      
+      # Server
+      SERVER_PORT: 8080
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      ENVIRONMENT: production
+      
+      # Admin
+      ADMIN_TELEGRAM_ID: ${ADMIN_TELEGRAM_ID:-0}
+      MAINTENANCE_MODE: ${MAINTENANCE_MODE:-false}
+      MAINTENANCE_AUTO_ENABLE: ${MAINTENANCE_AUTO_ENABLE:-true}
+      
+      # Security
+      JWT_SECRET: ${JWT_SECRET:-your_jwt_secret_here}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-your_32_character_encryption_key}
+      
+      # Monitoring
+      HEALTH_CHECK_INTERVAL: 30s
+      STATS_CLEANUP_INTERVAL: 24h
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - remnawave_network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  remnawave_network:
+    driver: bridge
