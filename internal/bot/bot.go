@@ -595,11 +595,10 @@ func (b *Bot) handleBuySubscriptionCallback(query *tgbotapi.CallbackQuery, user 
 
 // handleMySubscriptionsCallback обрабатывает callback для моих подписки
 func (b *Bot) handleMySubscriptionsCallback(query *tgbotapi.CallbackQuery, user *models.User) {
-	// Создаем WebApp кнопку для миниаппа
-	webApp := tgbotapi.WebAppInfo{URL: b.config.MiniApp.URL}
+	// Создаем URL кнопку для миниаппа
 	keyboard := tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonWebApp("🔒 Моя подписка", webApp),
+			tgbotapi.NewInlineKeyboardButtonURL("🔒 Моя подписка", b.config.MiniApp.URL),
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("🔙 Назад", "start"),
@@ -609,7 +608,7 @@ func (b *Bot) handleMySubscriptionsCallback(query *tgbotapi.CallbackQuery, user 
 	text := "📱 Управление подписками\n\n"
 	text += "Нажмите на кнопку ниже, чтобы открыть приложение для управления вашими подписками."
 
-	// Используем sendMessage для WebApp кнопок
+	// Используем sendMessage для URL кнопок
 	msg := tgbotapi.NewMessage(query.Message.Chat.ID, text)
 	msg.ReplyMarkup = keyboard
 	msg.ParseMode = tgbotapi.ModeHTML
