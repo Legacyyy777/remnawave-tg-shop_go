@@ -234,10 +234,9 @@ func (c *Config) Validate() error {
 	if c.Security.EncryptionKey == "" || len(c.Security.EncryptionKey) != 32 {
 		return fmt.Errorf("ENCRYPTION_KEY must be 32 characters long")
 	}
-	// Временно отключаем валидацию для отладки
-	// if c.MiniApp.URL == "" {
-	//	return fmt.Errorf("SUBSCRIPTION_MINI_APP_URL is required")
-	// }
+	if c.MiniApp.URL == "" {
+		return fmt.Errorf("SUBSCRIPTION_MINI_APP_URL is required")
+	}
 	return nil
 }
 
