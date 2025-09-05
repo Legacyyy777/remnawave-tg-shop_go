@@ -20,8 +20,8 @@ COPY . .
 # Generate go.sum
 RUN go mod tidy
 
-# Copy env.example for final stage
-COPY env.example /tmp/env.example
+# Copy .env for final stage
+COPY .env /tmp/.env
 
 # Build the application
 ENV GOSUMDB=off
@@ -40,7 +40,7 @@ WORKDIR /root/
 COPY --from=builder /app/main .
 
 # Copy environment file
-COPY --from=builder /tmp/env.example .env
+COPY --from=builder /tmp/.env .env
 
 # Expose port
 EXPOSE 8080
