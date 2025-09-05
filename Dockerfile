@@ -20,8 +20,8 @@ COPY . .
 # Generate go.sum
 RUN go mod tidy
 
-# Copy .env for final stage
-COPY .env /tmp/.env
+# Copy env.example for final stage (if .env doesn't exist)
+COPY env.example /tmp/.env
 
 # Build the application
 ENV GOSUMDB=off
