@@ -2,7 +2,6 @@ package bot
 
 import (
 	"fmt"
-	"strings"
 	"time"
 
 	"remnawave-tg-shop/internal/bot/handlers/callbacks"
@@ -205,7 +204,7 @@ func (b *Bot) setupHandlers() {
 
 	// Callback queries
 	b.api.Handle("\fbalance", b.handleBalanceCallback)
-	b.api.Handle("\fstart", b.handleStartCallback)
+	b.api.Handle("\fstart", b.handleStartCallbackTelebot)
 
 	// Text messages
 	b.api.Handle(telebot.OnText, b.handleTextMessage)
@@ -216,7 +215,7 @@ func (b *Bot) handleStartCommand(c telebot.Context) error {
 	user := c.Get("user").(*models.User)
 	message := &tgbotapi.Message{
 		Chat: &tgbotapi.Chat{ID: c.Message().Chat.ID},
-		From: &tgbotapi.User{ID: c.Message().From.ID},
+		From: &tgbotapi.User{ID: c.Message().Sender.ID},
 	}
 	return b.startHandler.Handle(message, user, "")
 }
@@ -225,7 +224,7 @@ func (b *Bot) handleHelpCommand(c telebot.Context) error {
 	user := c.Get("user").(*models.User)
 	message := &tgbotapi.Message{
 		Chat: &tgbotapi.Chat{ID: c.Message().Chat.ID},
-		From: &tgbotapi.User{ID: c.Message().From.ID},
+		From: &tgbotapi.User{ID: c.Message().Sender.ID},
 	}
 	return b.helpHandler.Handle(message, user, "")
 }
@@ -234,17 +233,17 @@ func (b *Bot) handleBalanceCallback(c telebot.Context) error {
 	user := c.Get("user").(*models.User)
 	query := &tgbotapi.CallbackQuery{
 		Message: &tgbotapi.Message{Chat: &tgbotapi.Chat{ID: c.Message().Chat.ID}},
-		From:    &tgbotapi.User{ID: c.Message().From.ID},
+		From:    &tgbotapi.User{ID: c.Message().Sender.ID},
 		Data:    c.Callback().Data,
 	}
 	return b.balanceHandler.Handle(query, user)
 }
 
-func (b *Bot) handleStartCallback(c telebot.Context) error {
+func (b *Bot) handleStartCallbackTelebot(c telebot.Context) error {
 	user := c.Get("user").(*models.User)
 	query := &tgbotapi.CallbackQuery{
 		Message: &tgbotapi.Message{Chat: &tgbotapi.Chat{ID: c.Message().Chat.ID}},
-		From:    &tgbotapi.User{ID: c.Message().From.ID},
+		From:    &tgbotapi.User{ID: c.Message().Sender.ID},
 		Data:    c.Callback().Data,
 	}
 	return b.handleStartCallback(query, user)
@@ -254,7 +253,7 @@ func (b *Bot) handleTextMessage(c telebot.Context) error {
 	user := c.Get("user").(*models.User)
 	message := &tgbotapi.Message{
 		Chat: &tgbotapi.Chat{ID: c.Message().Chat.ID},
-		From: &tgbotapi.User{ID: c.Message().From.ID},
+		From: &tgbotapi.User{ID: c.Message().Sender.ID},
 		Text: c.Message().Text,
 	}
 	return b.textHandler.Handle(message, user)
