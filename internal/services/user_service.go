@@ -212,15 +212,25 @@ func (s *userService) SearchUsers(query string, limit int) ([]models.User, error
 
 // IsAdmin проверяет, является ли пользователь администратором
 func (s *userService) IsAdmin(telegramID int64) bool {
+	// Добавляем отладочную информацию
+	s.logger.Info("Checking admin rights", 
+		"telegram_id", telegramID, 
+		"admin_telegram_id", s.config.Admin.TelegramID,
+		"admin_telegram_id_zero", s.config.Admin.TelegramID == 0)
+
 	// Сначала проверяем ADMIN_TELEGRAM_ID из конфигурации
 	if s.config.Admin.TelegramID != 0 && s.config.Admin.TelegramID == telegramID {
+		s.logger.Info("User is admin by config", "telegram_id", telegramID)
 		return true
 	}
 
 	// Затем проверяем поле IsAdmin в базе данных
 	user, err := s.userRepo.GetByTelegramID(telegramID)
 	if err != nil || user == nil {
+		s.logger.Info("User not found in database", "telegram_id", telegramID, "error", err)
 		return false
 	}
+	
+	s.logger.Info("User admin status from DB", "telegram_id", telegramID, "is_admin", user.IsAdmin)
 	return user.IsAdmin
 }

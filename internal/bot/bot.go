@@ -339,6 +339,11 @@ func (b *Bot) handleReferralsCommand(message *tgbotapi.Message, user *models.Use
 
 // handleAdminCommand обрабатывает команду /admin
 func (b *Bot) handleAdminCommand(message *tgbotapi.Message, user *models.User) {
+	b.logger.Info("Admin command received", 
+		"user_telegram_id", user.TelegramID, 
+		"user_id", user.ID,
+		"username", user.Username)
+		
 	if !b.userService.IsAdmin(user.TelegramID) {
 		b.sendMessage(message.Chat.ID, "❌ У вас нет прав администратора.")
 		return
