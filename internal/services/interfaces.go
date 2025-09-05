@@ -25,7 +25,7 @@ type UserService interface {
 // SubscriptionService интерфейс для работы с подписками
 type SubscriptionService interface {
 	CreateSubscription(userID uuid.UUID, serverID, planID int) (*models.Subscription, error)
-	CreateSubscription(userID uuid.UUID, planName string, durationMonths, price int) error
+	CreateSubscriptionByPlan(userID uuid.UUID, planName string, durationMonths, price int) error
 	CreateTrialSubscription(userID uuid.UUID, durationDays, trafficLimitGB int, trafficStrategy string) error
 	HasUsedTrial(userID uuid.UUID) (bool, error)
 	GetUserSubscriptions(userID uuid.UUID) ([]models.Subscription, error)

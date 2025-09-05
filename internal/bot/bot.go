@@ -862,7 +862,7 @@ func (b *Bot) handleTariffCallback(query *tgbotapi.CallbackQuery, user *models.U
 	}
 	
 	// Создаем подписку
-	err := b.subscriptionService.CreateSubscription(user.ID, planName, duration, price)
+	err := b.subscriptionService.CreateSubscriptionByPlan(user.ID, planName, duration, price)
 	if err != nil {
 		b.answerCallbackQuery(query.ID, "❌ Ошибка при создании подписки")
 		return

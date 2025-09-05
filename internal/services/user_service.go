@@ -204,6 +204,11 @@ func (s *userService) SubtractBalance(userID uuid.UUID, amount float64) error {
 	return nil
 }
 
+// DeductBalance списывает средства с баланса пользователя (алиас для SubtractBalance)
+func (s *userService) DeductBalance(userID uuid.UUID, amount float64) error {
+	return s.SubtractBalance(userID, amount)
+}
+
 // GetReferrals получает рефералов пользователя
 func (s *userService) GetReferrals(userID uuid.UUID) ([]models.User, error) {
 	referrals, err := s.userRepo.GetReferrals(userID)

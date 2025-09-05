@@ -169,3 +169,66 @@ func (s *subscriptionService) GetExpiringSoon(days int) ([]models.Subscription, 
 	}
 	return subscriptions, nil
 }
+
+// CreateSubscriptionByPlan создает подписку по плану
+func (s *subscriptionService) CreateSubscriptionByPlan(userID uuid.UUID, planName string, durationMonths, price int) error {
+	// Создаем подписку в нашей БД
+	subscription := &models.Subscription{
+		UserID:     userID,
+		ServerID:   1, // По умолчанию сервер 1
+		ServerName: "Default Server",
+		PlanID:     1, // По умолчанию план 1
+		PlanName:   planName,
+		Status:     "active",
+		ExpiresAt:  time.Now().AddDate(0, durationMonths, 0),
+		CreatedAt:  time.Now(),
+		UpdatedAt:  time.Now(),
+	}
+
+	if err := s.subscriptionRepo.Create(subscription); err != nil {
+		return fmt.Errorf("failed to create subscription: %w", err)
+	}
+
+	s.logger.Info("Subscription created by plan", "user_id", userID, "plan_name", planName, "duration_months", durationMonths, "price", price)
+	return nil
+}
+
+// CreateTrialSubscription создает пробную подписку
+func (s *subscriptionService) CreateTrialSubscription(userID uuid.UUID, durationDays, trafficLimitGB int, trafficStrategy string) error {
+	// Создаем пробную подписку в нашей БД
+	subscription := &models.Subscription{
+		UserID:     userID,
+		ServerID:   1, // По умолчанию сервер 1
+		ServerName: "Trial Server",
+		PlanID:     0, // 0 для пробной подписки
+		PlanName:   "Trial Plan",
+		Status:     "active",
+		ExpiresAt:  time.Now().AddDate(0, 0, durationDays),
+		CreatedAt:  time.Now(),
+		UpdatedAt:  time.Now(),
+	}
+
+	if err := s.subscriptionRepo.Create(subscription); err != nil {
+		return fmt.Errorf("failed to create trial subscription: %w", err)
+	}
+
+	s.logger.Info("Trial subscription created", "user_id", userID, "duration_days", durationDays, "traffic_limit_gb", trafficLimitGB, "traffic_strategy", trafficStrategy)
+	return nil
+}
+
+// HasUsedTrial проверяет, использовал ли пользователь пробный период
+func (s *subscriptionService) HasUsedTrial(userID uuid.UUID) (bool, error) {
+	subscriptions, err := s.subscriptionRepo.GetByUserID(userID)
+	if err != nil {
+		return false, fmt.Errorf("failed to get user subscriptions: %w", err)
+	}
+
+	// Проверяем, есть ли у пользователя пробная подписка (PlanID = 0)
+	for _, sub := range subscriptions {
+		if sub.PlanID == 0 {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
