@@ -13,17 +13,18 @@ func main() {
 	// Загружаем конфигурацию
 	cfg, err := config.Load()
 	if err != nil {
-		log.Fatalf("Failed to load config: %v", err)
+		log.Fatalf("Ошибка загрузки конфигурации: %v", err)
 	}
 
-	// Инициализируем логгер
+	// Создаем логгер
 	logger := logger.New(cfg.LogLevel)
 
-	// Создаем и запускаем приложение
+	// Создаем приложение
 	application := app.New(cfg, logger)
-	
+
+	// Запускаем приложение
 	if err := application.Run(); err != nil {
-		logger.Fatal("Application failed to start", "error", err)
+		logger.Fatal("Ошибка запуска приложения", "error", err)
 		os.Exit(1)
 	}
 }
