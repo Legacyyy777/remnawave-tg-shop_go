@@ -94,9 +94,15 @@ type MonitoringConfig struct {
 
 // Load загружает конфигурацию из переменных окружения
 func Load() (*Config, error) {
+	// Отладка загрузки конфигурации
+	fmt.Printf("CONFIG DEBUG: Starting config load...\n")
+	
 	// Загружаем .env файл если он существует
 	if err := godotenv.Load(); err != nil {
+		fmt.Printf("CONFIG DEBUG: .env file not loaded: %v\n", err)
 		// Игнорируем ошибку если файл не найден
+	} else {
+		fmt.Printf("CONFIG DEBUG: .env file loaded successfully\n")
 	}
 
 	cfg := &Config{}
@@ -197,11 +203,18 @@ func getEnvAsInt(key string, defaultValue int) int {
 }
 
 func getEnvAsInt64(key string, defaultValue int64) int64 {
-	if value := os.Getenv(key); value != "" {
+	value := os.Getenv(key)
+	fmt.Printf("DEBUG getEnvAsInt64: key='%s', value='%s', empty=%t\n", key, value, value == "")
+	
+	if value != "" {
 		if intValue, err := strconv.ParseInt(value, 10, 64); err == nil {
+			fmt.Printf("DEBUG getEnvAsInt64: parsed successfully: %d\n", intValue)
 			return intValue
+		} else {
+			fmt.Printf("DEBUG getEnvAsInt64: parse error: %v\n", err)
 		}
 	}
+	fmt.Printf("DEBUG getEnvAsInt64: using default value: %d\n", defaultValue)
 	return defaultValue
 }
 
