@@ -10,267 +10,295 @@ import (
 	"remnawave-tg-shop/internal/models"
 	"remnawave-tg-shop/internal/services"
 
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"gopkg.in/telebot.v3"
 )
 
 // Bot представляет телеграм-бота
 type Bot struct {
-	api            *tgbotapi.BotAPI
-	config         *config.Config
-	logger         logger.Logger
-	userService    services.UserService
+	api                 *telebot.Bot
+	config              *config.Config
+	logger              logger.Logger
+	userService         services.UserService
 	subscriptionService services.SubscriptionService
-	paymentService services.PaymentService
+	paymentService      services.PaymentService
 }
 
 // NewBot создает нового бота
 func NewBot(cfg *config.Config, log logger.Logger, userService services.UserService, subscriptionService services.SubscriptionService, paymentService services.PaymentService) (*Bot, error) {
-	api, err := tgbotapi.NewBotAPI(cfg.BotToken)
+	pref := telebot.Settings{
+		Token:  cfg.BotToken,
+		Poller: &telebot.LongPoller{Timeout: 10 * time.Second},
+	}
+
+	api, err := telebot.NewBot(pref)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create bot API: %w", err)
 	}
 
-	api.Debug = cfg.LogLevel == "debug"
-
 	bot := &Bot{
-		api:                api,
-		config:             cfg,
-		logger:             log,
-		userService:        userService,
+		api:                 api,
+		config:              cfg,
+		logger:              log,
+		userService:         userService,
 		subscriptionService: subscriptionService,
-		paymentService:     paymentService,
+		paymentService:      paymentService,
 	}
+
+	// Регистрируем обработчики
+	bot.setupHandlers()
 
 	return bot, nil
 }
 
 // Start запускает бота
 func (b *Bot) Start() error {
-	b.logger.Info("Starting Telegram bot...")
-
-	// Настраиваем webhook если указан URL
-	if b.config.BotWebhookURL != "" {
-		return b.startWebhook()
-	}
-
-	// Запускаем в режиме polling
-	return b.startPolling()
-}
-
-// startWebhook запускает бота в режиме webhook
-func (b *Bot) startWebhook() error {
-	webhook, err := tgbotapi.NewWebhook(b.config.BotWebhookURL)
-	if err != nil {
-		return fmt.Errorf("failed to create webhook: %w", err)
-	}
-
-	_, err = b.api.Request(webhook)
-	if err != nil {
-		return fmt.Errorf("failed to set webhook: %w", err)
-	}
-
-	info, err := b.api.GetWebhookInfo()
-	if err != nil {
-		return fmt.Errorf("failed to get webhook info: %w", err)
-	}
-
-	if info.LastErrorDate != 0 {
-		b.logger.Error("Webhook error", "message", info.LastErrorMessage)
-	}
-
-	b.logger.Info("Bot started in webhook mode", "url", b.config.BotWebhookURL)
+	b.logger.Info("Starting Telegram bot with Telebot...")
+	b.api.Start()
 	return nil
 }
 
-// startPolling запускает бота в режиме polling
-func (b *Bot) startPolling() error {
-	u := tgbotapi.NewUpdate(0)
-	u.Timeout = 60
-
-	updates := b.api.GetUpdatesChan(u)
-
-	b.logger.Info("Bot started in polling mode")
-
-	for update := range updates {
-		go b.handleUpdate(update)
-	}
-
+// HandleUpdate обрабатывает обновления для webhook
+func (b *Bot) HandleUpdate(update interface{}) error {
+	// Для telebot webhook обрабатывается автоматически
 	return nil
 }
 
-// HandleUpdate обрабатывает обновление от Telegram (публичный метод)
-func (b *Bot) HandleUpdate(update tgbotapi.Update) error {
-	return b.handleUpdate(update)
+// setupHandlers настраивает обработчики команд и callback'ов
+func (b *Bot) setupHandlers() {
+	// Middleware для логирования и аутентификации
+	b.api.Use(b.authMiddleware)
+
+	// Команды
+	b.api.Handle("/start", b.handleStartCommand)
+	b.api.Handle("/help", b.handleHelpCommand)
+	b.api.Handle("/balance", b.handleBalanceCommand)
+	b.api.Handle("/subscriptions", b.handleSubscriptionsCommand)
+	b.api.Handle("/referrals", b.handleReferralsCommand)
+	b.api.Handle("/admin", b.handleAdminCommand)
+
+	// Callback queries
+	b.api.Handle(&balanceBtn, b.handleBalanceCallback)
+	b.api.Handle(&buySubscriptionBtn, b.handleBuySubscriptionCallback)
+	b.api.Handle(&mySubscriptionsBtn, b.handleMySubscriptionsCallback)
+	b.api.Handle(&referralsBtn, b.handleReferralsCallback)
+	b.api.Handle(&promoCodeBtn, b.handlePromoCodeCallback)
+	b.api.Handle(&languageBtn, b.handleLanguageCallback)
+	b.api.Handle(&statusBtn, b.handleStatusCallback)
+	b.api.Handle(&supportBtn, b.handleSupportCallback)
+	b.api.Handle(&trialBtn, b.handleTrialCallback)
+	b.api.Handle(&startBtn, b.handleStartCallback)
+
+	// Tariff callbacks
+	b.api.Handle(&tariff1Btn, func(c telebot.Context) error { return b.handleTariffCallback(c, "tariff_1") })
+	b.api.Handle(&tariff3Btn, func(c telebot.Context) error { return b.handleTariffCallback(c, "tariff_3") })
+	b.api.Handle(&tariff6Btn, func(c telebot.Context) error { return b.handleTariffCallback(c, "tariff_6") })
+	b.api.Handle(&tariff12Btn, func(c telebot.Context) error { return b.handleTariffCallback(c, "tariff_12") })
+
+	// Payment callbacks
+	b.api.Handle(&paymentStarsBtn, func(c telebot.Context) error { return b.handlePaymentCallback(c, "payment_stars") })
+	b.api.Handle(&paymentTributeBtn, func(c telebot.Context) error { return b.handlePaymentCallback(c, "payment_tribute") })
+	b.api.Handle(&paymentYooKassaBtn, func(c telebot.Context) error { return b.handlePaymentCallback(c, "payment_yookassa") })
+
+	// Text messages
+	b.api.Handle(telebot.OnText, b.handleTextMessage)
 }
 
-// handleUpdate обрабатывает обновление от Telegram
-func (b *Bot) handleUpdate(update tgbotapi.Update) error {
-	if update.Message != nil {
-		b.handleMessage(update.Message)
-	} else if update.CallbackQuery != nil {
-		b.handleCallbackQuery(update.CallbackQuery)
+// Определяем кнопки
+var (
+	balanceBtn           = &telebot.Btn{Unique: "balance"}
+	buySubscriptionBtn   = &telebot.Btn{Unique: "buy_subscription"}
+	mySubscriptionsBtn   = &telebot.Btn{Unique: "my_subscriptions"}
+	referralsBtn         = &telebot.Btn{Unique: "referrals"}
+	promoCodeBtn         = &telebot.Btn{Unique: "promo_code"}
+	languageBtn          = &telebot.Btn{Unique: "language"}
+	statusBtn            = &telebot.Btn{Unique: "status"}
+	supportBtn           = &telebot.Btn{Unique: "support"}
+	trialBtn             = &telebot.Btn{Unique: "trial"}
+	startBtn             = &telebot.Btn{Unique: "start"}
+	tariff1Btn           = &telebot.Btn{Unique: "tariff_1"}
+	tariff3Btn           = &telebot.Btn{Unique: "tariff_3"}
+	tariff6Btn           = &telebot.Btn{Unique: "tariff_6"}
+	tariff12Btn          = &telebot.Btn{Unique: "tariff_12"}
+	paymentStarsBtn      = &telebot.Btn{Unique: "payment_stars"}
+	paymentTributeBtn    = &telebot.Btn{Unique: "payment_tribute"}
+	paymentYooKassaBtn   = &telebot.Btn{Unique: "payment_yookassa"}
+)
+
+// authMiddleware - middleware для аутентификации и логирования
+func (b *Bot) authMiddleware(next telebot.HandlerFunc) telebot.HandlerFunc {
+	return func(c telebot.Context) error {
+		user := c.Sender()
+		if user == nil {
+			return c.Send("❌ Ошибка аутентификации")
+		}
+
+		b.logger.Info("Request from user", "user_id", user.ID, "username", user.Username)
+
+		// Создаем или получаем пользователя
+		dbUser, err := b.userService.CreateOrGetUser(
+			user.ID,
+			user.Username,
+			user.FirstName,
+			user.LastName,
+			user.LanguageCode,
+		)
+		if err != nil {
+			b.logger.Error("Failed to create/get user", "error", err)
+			return c.Send("❌ Ошибка при получении данных пользователя")
+		}
+
+		// Проверяем блокировку
+		if dbUser.IsBlocked {
+			return c.Send("❌ Вы заблокированы и не можете использовать бота.")
+		}
+
+		// Сохраняем пользователя в контексте
+		c.Set("user", dbUser)
+
+		return next(c)
 	}
-	return nil
 }
 
-// handleMessage обрабатывает сообщения
-func (b *Bot) handleMessage(message *tgbotapi.Message) {
-	b.logger.Info("Received message", "chat_id", message.Chat.ID, "text", message.Text, "from", message.From.UserName)
-	
-	// Игнорируем старые сообщения
-	if message.Date < int(time.Now().Unix()-300) {
-		b.logger.Info("Ignoring old message", "date", message.Date, "now", time.Now().Unix())
-		return
+// getUserFromContext получает пользователя из контекста
+func (b *Bot) getUserFromContext(c telebot.Context) *models.User {
+	user, ok := c.Get("user").(*models.User)
+	if !ok {
+		return nil
 	}
-
-	// Создаем или получаем пользователя
-	user, err := b.userService.CreateOrGetUser(
-		message.From.ID,
-		message.From.UserName,
-		message.From.FirstName,
-		message.From.LastName,
-		message.From.LanguageCode,
-	)
-	if err != nil {
-		b.logger.Error("Failed to create/get user", "error", err)
-		return
-	}
-
-	// Проверяем, не заблокирован ли пользователь
-	if user.IsBlocked {
-		b.sendMessage(message.Chat.ID, "❌ Вы заблокированы и не можете использовать бота.")
-		return
-	}
-
-	// Обрабатываем команды
-	if message.IsCommand() {
-		b.handleCommand(message, user)
-		return
-	}
-
-	// Обрабатываем обычные сообщения
-	b.handleTextMessage(message, user)
-}
-
-// handleCommand обрабатывает команды
-func (b *Bot) handleCommand(message *tgbotapi.Message, user *models.User) {
-	command := message.Command()
-	args := message.CommandArguments()
-
-	switch command {
-	case "start":
-		b.handleStartCommand(message, user, args)
-	case "help":
-		b.handleHelpCommand(message, user)
-	case "balance":
-		b.handleBalanceCommand(message, user)
-	case "subscriptions":
-		b.handleSubscriptionsCommand(message, user)
-	case "referrals":
-		b.handleReferralsCommand(message, user)
-	case "admin":
-		b.handleAdminCommand(message, user)
-	default:
-		b.sendMessage(message.Chat.ID, "❓ Неизвестная команда. Используйте /help для получения списка команд.")
-	}
+	return user
 }
 
 // handleStartCommand обрабатывает команду /start
-func (b *Bot) handleStartCommand(message *tgbotapi.Message, user *models.User, args string) {
-	b.logger.Info("Handling start command", "chat_id", message.Chat.ID, "user_id", user.ID)
-	
-	// Формируем приветствие с именем пользователя
+func (b *Bot) handleStartCommand(c telebot.Context) error {
+	user := b.getUserFromContext(c)
+	if user == nil {
+		return c.Send("❌ Ошибка получения данных пользователя")
+	}
+
+	// Обработка реферального кода
+	args := c.Message().Payload
+	if args != "" {
+		referralUser, err := b.userService.GetUserByReferralCode(args)
+		if err == nil && referralUser != nil && referralUser.ID != user.ID {
+			user.ReferredBy = &referralUser.ID
+			b.userService.UpdateUser(user)
+			b.userService.AddBalance(referralUser.ID, 50)
+		}
+	}
+
+	// Формируем текст
 	username := user.GetDisplayName()
 	text := fmt.Sprintf("Привет, %s👋\n\n", username)
 	text += "Что бы вы хотели сделать?"
 
-	// Обработка реферального кода
-	if args != "" {
-		referralUser, err := b.userService.GetUserByReferralCode(args)
-		if err == nil && referralUser != nil && referralUser.ID != user.ID {
-			// Добавляем реферала
-			user.ReferredBy = &referralUser.ID
-			b.userService.UpdateUser(user)
-			
-			// Начисляем бонус рефереру
-			b.userService.AddBalance(referralUser.ID, 50) // 50 рублей бонус
-			
-			text += "\n\n🎁 Вы получили бонус за переход по реферальной ссылке!\n"
-			text += "💰 На ваш баланс начислено 50 рублей."
-		}
-	}
+	// Создаем главное меню
+	keyboard := b.createMainMenuKeyboard(user)
 
-	// Формируем кнопку с балансом
-	balanceText := fmt.Sprintf("Баланс %.0f₽", user.Balance)
+	return c.Send(text, keyboard)
+}
 
-	// Создаем кнопки главного меню
-	var keyboardRows [][]tgbotapi.InlineKeyboardButton
-	
+// createMainMenuKeyboard создает главное меню
+func (b *Bot) createMainMenuKeyboard(user *models.User) *telebot.ReplyMarkup {
+	menu := &telebot.ReplyMarkup{}
+
 	// Баланс
-	keyboardRows = append(keyboardRows, []tgbotapi.InlineKeyboardButton{
-		tgbotapi.NewInlineKeyboardButtonData("💰 " + balanceText, "balance"),
-	})
-	
-	// Купить
-	keyboardRows = append(keyboardRows, []tgbotapi.InlineKeyboardButton{
-		tgbotapi.NewInlineKeyboardButtonData("🚀 Купить", "buy_subscription"),
-	})
-	
-	// Пробный период (если включен и пользователь еще не использовал)
+	balanceText := fmt.Sprintf("💰 Баланс %.0f₽", user.Balance)
+	balanceBtn.Text = balanceText
+
+	// Основные кнопки
+	buyBtn := menu.Data("🚀 Купить", "buy_subscription")
+
+	// Пробный период (если доступен)
+	var trialRow []telebot.Btn
 	if b.config.Trial.Enabled {
-		// Проверяем, использовал ли пользователь пробный период
 		hasUsedTrial, err := b.subscriptionService.HasUsedTrial(user.ID)
 		if err == nil && !hasUsedTrial {
-			keyboardRows = append(keyboardRows, []tgbotapi.InlineKeyboardButton{
-				tgbotapi.NewInlineKeyboardButtonData("🎁 Пробный период", "trial"),
-			})
+			trialBtn := menu.Data("🎁 Пробный период", "trial")
+			trialRow = append(trialRow, trialBtn)
 		}
 	}
-	
+
 	// Моя подписка - WebApp кнопка
-	webAppButton := tgbotapi.InlineKeyboardButton{
-		Text: "🔒 Моя подписка",
-		WebApp: &tgbotapi.WebApp{
-			URL: b.config.MiniApp.URL,
-		},
+	webAppBtn := menu.WebApp("🔒 Моя подписка", &telebot.WebApp{URL: b.config.MiniApp.URL})
+
+	// Дополнительные кнопки
+	referralsBtn := menu.Data("🎁 Рефералы", "referrals")
+	promoBtn := menu.Data("🎟️ Промокод", "promo_code")
+	langBtn := menu.Data("🌐 Язык", "language")
+	statusBtn := menu.Data("📊 Статус", "status")
+	supportBtn := menu.Data("💬 Поддержка", "support")
+
+	// Формируем клавиатуру
+	rows := []telebot.Row{
+		{*balanceBtn},
+		{buyBtn},
 	}
-	keyboardRows = append(keyboardRows, []tgbotapi.InlineKeyboardButton{webAppButton})
-	
-	// Рефералы и Промокод
-	keyboardRows = append(keyboardRows, []tgbotapi.InlineKeyboardButton{
-		tgbotapi.NewInlineKeyboardButtonData("🎁 Рефералы", "referrals"),
-		tgbotapi.NewInlineKeyboardButtonData("🎟️ Промокод", "promo_code"),
-	})
-	
-	// Язык и Статус
-	keyboardRows = append(keyboardRows, []tgbotapi.InlineKeyboardButton{
-		tgbotapi.NewInlineKeyboardButtonData("🌐 Язык", "language"),
-		tgbotapi.NewInlineKeyboardButtonData("📊 Статус", "status"),
-	})
-	
-	// Поддержка
-	keyboardRows = append(keyboardRows, []tgbotapi.InlineKeyboardButton{
-		tgbotapi.NewInlineKeyboardButtonData("💬 Поддержка", "support"),
-	})
 
-	keyboard := tgbotapi.NewInlineKeyboardMarkup(keyboardRows...)
+	if len(trialRow) > 0 {
+		rows = append(rows, trialRow)
+	}
 
-	// Убираем любую Reply клавиатуру
-	msg := tgbotapi.NewMessage(message.Chat.ID, text)
-	msg.ReplyMarkup = keyboard
-	msg.ParseMode = tgbotapi.ModeHTML
-	
-	// Убираем Reply клавиатуру
-	removeKeyboard := tgbotapi.NewRemoveKeyboard(true)
-	hideMsg := tgbotapi.NewMessage(message.Chat.ID, "")
-	hideMsg.ReplyMarkup = removeKeyboard
-	b.api.Send(hideMsg)
-	
-	b.api.Send(msg)
+	rows = append(rows, []telebot.Row{
+		{webAppBtn},
+		{referralsBtn, promoBtn},
+		{langBtn, statusBtn},
+		{supportBtn},
+	}...)
+
+	menu.Inline(rows...)
+	return menu
+}
+
+// handleBalanceCommand обрабатывает команду /balance
+func (b *Bot) handleBalanceCommand(c telebot.Context) error {
+	user := b.getUserFromContext(c)
+	if user == nil {
+		return c.Send("❌ Ошибка получения данных пользователя")
+	}
+
+	text := fmt.Sprintf("💰 Ваш баланс: %.2f ₽\n\n", user.Balance)
+	text += "💳 Пополнить баланс:"
+
+	keyboard := b.createPaymentKeyboard()
+	return c.Send(text, keyboard)
+}
+
+// createPaymentKeyboard создает клавиатуру платежей
+func (b *Bot) createPaymentKeyboard() *telebot.ReplyMarkup {
+	menu := &telebot.ReplyMarkup{}
+
+	var buttons []telebot.Btn
+
+	if b.config.Payments.StarsEnabled {
+		buttons = append(buttons, menu.Data("⭐ Telegram Stars", "payment_stars"))
+	}
+	if b.config.Payments.TributeEnabled {
+		buttons = append(buttons, menu.Data("💎 Tribute", "payment_tribute"))
+	}
+	if b.config.Payments.YooKassaEnabled {
+		buttons = append(buttons, menu.Data("💳 ЮKassa", "payment_yookassa"))
+	}
+
+	// Группируем по 2 кнопки в ряд
+	var rows []telebot.Row
+	for i := 0; i < len(buttons); i += 2 {
+		if i+1 < len(buttons) {
+			rows = append(rows, telebot.Row{buttons[i], buttons[i+1]})
+		} else {
+			rows = append(rows, telebot.Row{buttons[i]})
+		}
+	}
+
+	// Добавляем кнопку "Назад"
+	backBtn := menu.Data("🔙 Назад", "start")
+	rows = append(rows, telebot.Row{backBtn})
+
+	menu.Inline(rows...)
+	return menu
 }
 
 // handleHelpCommand обрабатывает команду /help
-func (b *Bot) handleHelpCommand(message *tgbotapi.Message, user *models.User) {
+func (b *Bot) handleHelpCommand(c telebot.Context) error {
 	text := "❓ Помощь по использованию бота\n\n"
 	text += "📋 Основные команды:\n"
 	text += "/start - 🏠 Главное меню\n"
@@ -285,52 +313,31 @@ func (b *Bot) handleHelpCommand(message *tgbotapi.Message, user *models.User) {
 	text += "4. Получите конфигурацию VPN\n\n"
 	text += "🆘 Если у вас есть вопросы, обратитесь к администратору."
 
-	b.sendMessage(message.Chat.ID, text)
-}
-
-// handleBalanceCommand обрабатывает команду /balance
-func (b *Bot) handleBalanceCommand(message *tgbotapi.Message, user *models.User) {
-	text := fmt.Sprintf("💰 Ваш баланс: %.2f ₽\n\n", user.Balance)
-	text += "💳 Пополнить баланс:"
-
-	keyboard := tgbotapi.NewInlineKeyboardMarkup(
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("⭐ Telegram Stars", "payment_stars"),
-			tgbotapi.NewInlineKeyboardButtonData("💎 Tribute", "payment_tribute"),
-		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("💳 ЮKassa", "payment_yookassa"),
-		),
-	)
-
-	msg := tgbotapi.NewMessage(message.Chat.ID, text)
-	msg.ReplyMarkup = keyboard
-	b.api.Send(msg)
+	return c.Send(text)
 }
 
 // handleSubscriptionsCommand обрабатывает команду /subscriptions
-func (b *Bot) handleSubscriptionsCommand(message *tgbotapi.Message, user *models.User) {
+func (b *Bot) handleSubscriptionsCommand(c telebot.Context) error {
+	user := b.getUserFromContext(c)
+	if user == nil {
+		return c.Send("❌ Ошибка получения данных пользователя")
+	}
+
 	subscriptions, err := b.subscriptionService.GetUserSubscriptions(user.ID)
 	if err != nil {
 		b.logger.Error("Failed to get user subscriptions", "error", err)
-		b.sendMessage(message.Chat.ID, "❌ Ошибка при получении подписок.")
-		return
+		return c.Send("❌ Ошибка при получении подписок.")
 	}
 
 	if len(subscriptions) == 0 {
 		text := "📱 У вас пока нет активных подписок.\n\n"
 		text += "🛒 Купить подписку:"
 
-		keyboard := tgbotapi.NewInlineKeyboardMarkup(
-			[]tgbotapi.InlineKeyboardButton{
-				tgbotapi.NewInlineKeyboardButtonData("🛒 Купить подписку", "buy_subscription"),
-			},
-		)
+		menu := &telebot.ReplyMarkup{}
+		buyBtn := menu.Data("🛒 Купить подписку", "buy_subscription")
+		menu.Inline(menu.Row(buyBtn))
 
-		msg := tgbotapi.NewMessage(message.Chat.ID, text)
-		msg.ReplyMarkup = keyboard
-		b.api.Send(msg)
-		return
+		return c.Send(text, menu)
 	}
 
 	text := "📱 Ваши подписки:\n\n"
@@ -349,29 +356,29 @@ func (b *Bot) handleSubscriptionsCommand(message *tgbotapi.Message, user *models
 		text += "\n"
 	}
 
-	keyboard := tgbotapi.NewInlineKeyboardMarkup(
-		[]tgbotapi.InlineKeyboardButton{
-			tgbotapi.NewInlineKeyboardButtonData("🛒 Купить подписку", "buy_subscription"),
-		},
-	)
+	menu := &telebot.ReplyMarkup{}
+	buyBtn := menu.Data("🛒 Купить подписку", "buy_subscription")
+	menu.Inline(menu.Row(buyBtn))
 
-	msg := tgbotapi.NewMessage(message.Chat.ID, text)
-	msg.ReplyMarkup = keyboard
-	b.api.Send(msg)
+	return c.Send(text, menu)
 }
 
 // handleReferralsCommand обрабатывает команду /referrals
-func (b *Bot) handleReferralsCommand(message *tgbotapi.Message, user *models.User) {
+func (b *Bot) handleReferralsCommand(c telebot.Context) error {
+	user := b.getUserFromContext(c)
+	if user == nil {
+		return c.Send("❌ Ошибка получения данных пользователя")
+	}
+
 	referrals, err := b.userService.GetReferrals(user.ID)
 	if err != nil {
 		b.logger.Error("Failed to get referrals", "error", err)
-		b.sendMessage(message.Chat.ID, "❌ Ошибка при получении рефералов.")
-		return
+		return c.Send("❌ Ошибка при получении рефералов.")
 	}
 
 	text := "👥 Реферальная программа\n\n"
 	text += fmt.Sprintf("🔗 Ваша реферальная ссылка:\n")
-	text += fmt.Sprintf("https://t.me/%s?start=%s\n\n", b.api.Self.UserName, user.ReferralCode)
+	text += fmt.Sprintf("https://t.me/%s?start=%s\n\n", b.api.Me.Username, user.ReferralCode)
 	text += fmt.Sprintf("👥 Количество рефералов: %d\n", len(referrals))
 	text += "💰 За каждого реферала вы получаете 50 ₽ бонуса\n\n"
 
@@ -382,24 +389,18 @@ func (b *Bot) handleReferralsCommand(message *tgbotapi.Message, user *models.Use
 		}
 	}
 
-	b.sendMessage(message.Chat.ID, text)
+	return c.Send(text)
 }
 
 // handleAdminCommand обрабатывает команду /admin
-func (b *Bot) handleAdminCommand(message *tgbotapi.Message, user *models.User) {
-	b.logger.Info("Admin command received", 
-		"user_telegram_id", user.TelegramID, 
-		"user_id", user.ID,
-		"username", user.Username)
-	
-	// Добавляем отладку конфигурации
-	b.logger.Info("Config debug", 
-		"admin_telegram_id", b.config.Admin.TelegramID,
-		"admin_telegram_id_zero", b.config.Admin.TelegramID == 0)
-		
+func (b *Bot) handleAdminCommand(c telebot.Context) error {
+	user := b.getUserFromContext(c)
+	if user == nil {
+		return c.Send("❌ Ошибка получения данных пользователя")
+	}
+
 	if !b.userService.IsAdmin(user.TelegramID) {
-		b.sendMessage(message.Chat.ID, "❌ У вас нет прав администратора.")
-		return
+		return c.Send("❌ У вас нет прав администратора.")
 	}
 
 	text := "⚙️ Админ панель\n\n"
@@ -409,252 +410,125 @@ func (b *Bot) handleAdminCommand(message *tgbotapi.Message, user *models.User) {
 	text += "💰 Доход: [загрузка...]\n\n"
 	text += "Выберите действие:"
 
-	keyboard := tgbotapi.NewInlineKeyboardMarkup(
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("👥 Пользователи", "admin_users"),
-			tgbotapi.NewInlineKeyboardButtonData("📱 Подписки", "admin_subscriptions"),
-		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("💰 Платежи", "admin_payments"),
-			tgbotapi.NewInlineKeyboardButtonData("📊 Статистика", "admin_stats"),
-		),
+	menu := &telebot.ReplyMarkup{}
+	usersBtn := menu.Data("👥 Пользователи", "admin_users")
+	subsBtn := menu.Data("📱 Подписки", "admin_subscriptions")
+	paymentsBtn := menu.Data("💰 Платежи", "admin_payments")
+	statsBtn := menu.Data("📊 Статистика", "admin_stats")
+
+	menu.Inline(
+		menu.Row(usersBtn, subsBtn),
+		menu.Row(paymentsBtn, statsBtn),
 	)
 
-	msg := tgbotapi.NewMessage(message.Chat.ID, text)
-	msg.ReplyMarkup = keyboard
-	b.api.Send(msg)
+	return c.Send(text, menu)
 }
 
-// handleTextMessage обрабатывает обычные текстовые сообщения
-func (b *Bot) handleTextMessage(message *tgbotapi.Message, user *models.User) {
-	switch message.Text {
+// handleTextMessage обрабатывает текстовые сообщения
+func (b *Bot) handleTextMessage(c telebot.Context) error {
+	user := b.getUserFromContext(c)
+	if user == nil {
+		return c.Send("❌ Ошибка получения данных пользователя")
+	}
+
+	switch c.Text() {
 	case "🔙 Главное меню":
-		// Обрабатываем как команду /start
-		b.handleStartCommand(message, user, "")
+		return b.handleStartCommand(c)
 	default:
-		// Здесь можно добавить обработку других текстовых сообщений
-		// Например, промокодов, поиска и т.д.
+		// Обработка промокодов и других сообщений
+		return nil
 	}
 }
 
-// handleCallbackQuery обрабатывает нажатия на inline кнопки
-func (b *Bot) handleCallbackQuery(query *tgbotapi.CallbackQuery) {
-	data := query.Data
-	userID := query.From.ID
+// Callback handlers
 
-	// Получаем пользователя
-	user, err := b.userService.GetUser(int64(userID))
-	if err != nil || user == nil {
-		b.answerCallbackQuery(query.ID, "❌ Ошибка при получении данных пользователя.")
-		return
+func (b *Bot) handleBalanceCallback(c telebot.Context) error {
+	user := b.getUserFromContext(c)
+	if user == nil {
+		return c.Respond(&telebot.CallbackResponse{Text: "❌ Ошибка получения данных пользователя"})
 	}
 
-	// Проверяем, не заблокирован ли пользователь
-	if user.IsBlocked {
-		b.answerCallbackQuery(query.ID, "❌ Вы заблокированы.")
-		return
-	}
-
-	// Обрабатываем callback данные
-	switch {
-	case data == "balance":
-		b.handleBalanceCallback(query, user)
-	case data == "buy_subscription":
-		b.handleBuySubscriptionCallback(query, user)
-	case data == "my_subscriptions":
-		b.handleMySubscriptionsCallback(query, user)
-	case data == "referrals":
-		b.handleReferralsCallback(query, user)
-	case data == "promo_code":
-		b.handlePromoCodeCallback(query, user)
-	case data == "language":
-		b.handleLanguageCallback(query, user)
-	case data == "status":
-		b.handleStatusCallback(query, user)
-	case data == "support":
-		b.handleSupportCallback(query, user)
-	case data == "trial":
-		b.handleTrialCallback(query, user)
-	case data == "start":
-		b.handleStartCallback(query, user)
-	case strings.HasPrefix(data, "tariff_"):
-		b.handleTariffCallback(query, user, data)
-	case strings.HasPrefix(data, "payment_"):
-		b.handlePaymentCallback(query, user, data)
-	case strings.HasPrefix(data, "admin_"):
-		b.handleAdminCallback(query, user, data)
-	default:
-		b.answerCallbackQuery(query.ID, "❓ Неизвестное действие.")
-	}
-}
-
-// sendMessage отправляет сообщение пользователю
-func (b *Bot) sendMessage(chatID int64, text string) {
-	b.logger.Info("Sending message", "chat_id", chatID, "text", text)
-	msg := tgbotapi.NewMessage(chatID, text)
-	msg.ParseMode = tgbotapi.ModeHTML
-	_, err := b.api.Send(msg)
-	if err != nil {
-		b.logger.Error("Failed to send message", "error", err, "chat_id", chatID)
-	} else {
-		b.logger.Info("Message sent successfully", "chat_id", chatID)
-	}
-}
-
-// answerCallbackQuery отвечает на callback query
-func (b *Bot) answerCallbackQuery(callbackQueryID string, text string) {
-	callback := tgbotapi.NewCallback(callbackQueryID, text)
-	_, err := b.api.Request(callback)
-	if err != nil {
-		b.logger.Error("Failed to answer callback query", "error", err)
-	}
-}
-
-// editMessage редактирует сообщение
-func (b *Bot) editMessage(chatID int64, messageID int, text string, keyboard *tgbotapi.InlineKeyboardMarkup) {
-	msg := tgbotapi.NewEditMessageText(chatID, messageID, text)
-	msg.ParseMode = tgbotapi.ModeHTML
-	if keyboard != nil {
-		msg.ReplyMarkup = keyboard
-	}
-	_, err := b.api.Send(msg)
-	if err != nil {
-		b.logger.Error("Failed to edit message", "error", err)
-	}
-}
-
-// handleBalanceCallback обрабатывает callback для баланса
-func (b *Bot) handleBalanceCallback(query *tgbotapi.CallbackQuery, user *models.User) {
 	text := fmt.Sprintf("💰 Ваш баланс: %.2f ₽\n\n", user.Balance)
 	text += "💳 Пополнить баланс:"
 
-	// Создаем кнопки оплаты на основе настроек
-	var paymentButtons []tgbotapi.InlineKeyboardButton
+	keyboard := b.createPaymentKeyboard()
 	
-	if b.config.Payments.StarsEnabled {
-		paymentButtons = append(paymentButtons, tgbotapi.NewInlineKeyboardButtonData("⭐ Telegram Stars", "payment_stars"))
-	}
-	if b.config.Payments.TributeEnabled {
-		paymentButtons = append(paymentButtons, tgbotapi.NewInlineKeyboardButtonData("💎 Tribute", "payment_tribute"))
-	}
-	if b.config.Payments.YooKassaEnabled {
-		paymentButtons = append(paymentButtons, tgbotapi.NewInlineKeyboardButtonData("💳 ЮKassa", "payment_yookassa"))
-	}
-	if b.config.Payments.CryptoPayEnabled {
-		paymentButtons = append(paymentButtons, tgbotapi.NewInlineKeyboardButtonData("₿ CryptoPay", "payment_cryptopay"))
-	}
-
-	// Группируем кнопки по 2 в ряд
-	var keyboardRows [][]tgbotapi.InlineKeyboardButton
-	for i := 0; i < len(paymentButtons); i += 2 {
-		if i+1 < len(paymentButtons) {
-			keyboardRows = append(keyboardRows, []tgbotapi.InlineKeyboardButton{paymentButtons[i], paymentButtons[i+1]})
-		} else {
-			keyboardRows = append(keyboardRows, []tgbotapi.InlineKeyboardButton{paymentButtons[i]})
-		}
-	}
-	
-	// Добавляем кнопку "Назад"
-	keyboardRows = append(keyboardRows, []tgbotapi.InlineKeyboardButton{
-		tgbotapi.NewInlineKeyboardButtonData("🔙 Назад", "start"),
-	})
-
-	keyboard := tgbotapi.NewInlineKeyboardMarkup(keyboardRows...)
-
-	b.editMessage(query.Message.Chat.ID, query.Message.MessageID, text, &keyboard)
-	b.answerCallbackQuery(query.ID, "💰 Баланс обновлен")
+	return c.Edit(text, keyboard)
 }
 
-// handleBuySubscriptionCallback обрабатывает callback для покупки подписки
-func (b *Bot) handleBuySubscriptionCallback(query *tgbotapi.CallbackQuery, user *models.User) {
+func (b *Bot) handleBuySubscriptionCallback(c telebot.Context) error {
 	text := "🛒 Выберите тарифный план:\n\n"
-	
-	// Создаем кнопки тарифов на основе настроек
-	var tariffButtons []tgbotapi.InlineKeyboardButton
-	
+
+	menu := &telebot.ReplyMarkup{}
+	var buttons []telebot.Btn
+
 	if b.config.Payments.Price1Month > 0 {
 		text += fmt.Sprintf("1️⃣ 1 месяц - %d₽\n", b.config.Payments.Price1Month)
-		tariffButtons = append(tariffButtons, tgbotapi.NewInlineKeyboardButtonData("1️⃣ 1 месяц", "tariff_1"))
+		buttons = append(buttons, menu.Data("1️⃣ 1 месяц", "tariff_1"))
 	}
 	if b.config.Payments.Price3Months > 0 {
 		text += fmt.Sprintf("3️⃣ 3 месяца - %d₽\n", b.config.Payments.Price3Months)
-		tariffButtons = append(tariffButtons, tgbotapi.NewInlineKeyboardButtonData("3️⃣ 3 месяца", "tariff_3"))
+		buttons = append(buttons, menu.Data("3️⃣ 3 месяца", "tariff_3"))
 	}
 	if b.config.Payments.Price6Months > 0 {
 		text += fmt.Sprintf("6️⃣ 6 месяцев - %d₽\n", b.config.Payments.Price6Months)
-		tariffButtons = append(tariffButtons, tgbotapi.NewInlineKeyboardButtonData("6️⃣ 6 месяцев", "tariff_6"))
+		buttons = append(buttons, menu.Data("6️⃣ 6 месяцев", "tariff_6"))
 	}
 	if b.config.Payments.Price12Months > 0 {
 		text += fmt.Sprintf("1️⃣2️⃣ 12 месяцев - %d₽\n", b.config.Payments.Price12Months)
-		tariffButtons = append(tariffButtons, tgbotapi.NewInlineKeyboardButtonData("1️⃣2️⃣ 12 месяцев", "tariff_12"))
+		buttons = append(buttons, menu.Data("1️⃣2️⃣ 12 месяцев", "tariff_12"))
 	}
-	
+
 	text += "\nВыберите тарифный план:"
 
-	// Группируем кнопки по 2 в ряд
-	var keyboardRows [][]tgbotapi.InlineKeyboardButton
-	for i := 0; i < len(tariffButtons); i += 2 {
-		if i+1 < len(tariffButtons) {
-			keyboardRows = append(keyboardRows, []tgbotapi.InlineKeyboardButton{tariffButtons[i], tariffButtons[i+1]})
+	// Группируем кнопки по 2
+	var rows []telebot.Row
+	for i := 0; i < len(buttons); i += 2 {
+		if i+1 < len(buttons) {
+			rows = append(rows, telebot.Row{buttons[i], buttons[i+1]})
 		} else {
-			keyboardRows = append(keyboardRows, []tgbotapi.InlineKeyboardButton{tariffButtons[i]})
+			rows = append(rows, telebot.Row{buttons[i]})
 		}
 	}
-	
-	// Добавляем кнопку "Назад"
-	keyboardRows = append(keyboardRows, []tgbotapi.InlineKeyboardButton{
-		tgbotapi.NewInlineKeyboardButtonData("🔙 Назад", "start"),
-	})
 
-	keyboard := tgbotapi.NewInlineKeyboardMarkup(keyboardRows...)
+	backBtn := menu.Data("🔙 Назад", "start")
+	rows = append(rows, telebot.Row{backBtn})
 
-	b.editMessage(query.Message.Chat.ID, query.Message.MessageID, text, &keyboard)
-	b.answerCallbackQuery(query.ID, "🛒 Выберите тариф")
+	menu.Inline(rows...)
+	return c.Edit(text, menu)
 }
 
-// handleMySubscriptionsCallback обрабатывает callback для моих подписки
-func (b *Bot) handleMySubscriptionsCallback(query *tgbotapi.CallbackQuery, user *models.User) {
+func (b *Bot) handleMySubscriptionsCallback(c telebot.Context) error {
 	text := "📱 Управление подписками\n\n"
 	text += "Нажмите на кнопку ниже, чтобы открыть мини-приложение для управления вашими подписками."
 
-	// Создаем Reply Keyboard с WebApp кнопкой
-	webAppButton := tgbotapi.NewKeyboardButtonWebApp("🔒 Открыть мини-приложение", tgbotapi.WebApp{
-		URL: b.config.MiniApp.URL,
-	})
-	
-	keyboard := tgbotapi.NewReplyKeyboard(
-		tgbotapi.NewKeyboardButtonRow(webAppButton),
-		tgbotapi.NewKeyboardButtonRow(
-			tgbotapi.NewKeyboardButton("🔙 Главное меню"),
-		),
-	)
-	keyboard.OneTimeKeyboard = true
-	keyboard.ResizeKeyboard = true
+	// Создаем Reply клавиатуру с WebApp кнопкой
+	menu := &telebot.ReplyMarkup{ResizeKeyboard: true, OneTimeKeyboard: true}
+	webAppBtn := menu.WebApp("🔒 Открыть мини-приложение", &telebot.WebApp{URL: b.config.MiniApp.URL})
+	mainMenuBtn := menu.Text("🔙 Главное меню")
 
-	// Отправляем новое сообщение с Reply клавиатурой
-	msg := tgbotapi.NewMessage(query.Message.Chat.ID, text)
-	msg.ReplyMarkup = keyboard
-	msg.ParseMode = tgbotapi.ModeHTML
-	
-	_, err := b.api.Send(msg)
-	if err != nil {
-		b.logger.Error("Failed to send message", "error", err)
-	}
-	
-	b.answerCallbackQuery(query.ID, "📱 Мини-приложение готово к открытию")
+	menu.Reply(
+		menu.Row(webAppBtn),
+		menu.Row(mainMenuBtn),
+	)
+
+	return c.Send(text, menu)
 }
 
-// handleReferralsCallback обрабатывает callback для рефералов
-func (b *Bot) handleReferralsCallback(query *tgbotapi.CallbackQuery, user *models.User) {
+func (b *Bot) handleReferralsCallback(c telebot.Context) error {
+	user := b.getUserFromContext(c)
+	if user == nil {
+		return c.Respond(&telebot.CallbackResponse{Text: "❌ Ошибка получения данных пользователя"})
+	}
+
 	referrals, err := b.userService.GetReferrals(user.ID)
 	if err != nil {
-		b.answerCallbackQuery(query.ID, "❌ Ошибка при получении рефералов")
-		return
+		return c.Respond(&telebot.CallbackResponse{Text: "❌ Ошибка при получении рефералов"})
 	}
 
 	text := "👥 Реферальная программа\n\n"
 	text += fmt.Sprintf("🔗 Ваша реферальная ссылка:\n")
-	text += fmt.Sprintf("https://t.me/%s?start=%s\n\n", b.api.Self.UserName, user.ReferralCode)
+	text += fmt.Sprintf("https://t.me/%s?start=%s\n\n", b.api.Me.Username, user.ReferralCode)
 	text += fmt.Sprintf("👥 Количество рефералов: %d\n", len(referrals))
 	text += "💰 За каждого реферала вы получаете 50 ₽ бонуса\n\n"
 
@@ -665,48 +539,14 @@ func (b *Bot) handleReferralsCallback(query *tgbotapi.CallbackQuery, user *model
 		}
 	}
 
-	keyboard := tgbotapi.NewInlineKeyboardMarkup(
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("🔙 Назад", "start"),
-		),
-	)
+	menu := &telebot.ReplyMarkup{}
+	backBtn := menu.Data("🔙 Назад", "start")
+	menu.Inline(menu.Row(backBtn))
 
-	b.editMessage(query.Message.Chat.ID, query.Message.MessageID, text, &keyboard)
-	b.answerCallbackQuery(query.ID, "👥 Рефералы загружены")
+	return c.Edit(text, menu)
 }
 
-// handlePaymentCallback обрабатывает callback для платежей
-func (b *Bot) handlePaymentCallback(query *tgbotapi.CallbackQuery, user *models.User, data string) {
-	switch data {
-	case "payment_stars":
-		b.answerCallbackQuery(query.ID, "⭐ Платеж через Stars пока не реализован")
-	case "payment_tribute":
-		b.answerCallbackQuery(query.ID, "💎 Платеж через Tribute пока не реализован")
-	case "payment_yookassa":
-		b.answerCallbackQuery(query.ID, "💳 Платеж через ЮKassa пока не реализован")
-	default:
-		b.answerCallbackQuery(query.ID, "❓ Неизвестный способ оплаты")
-	}
-}
-
-// handleAdminCallback обрабатывает callback для админ-панели
-func (b *Bot) handleAdminCallback(query *tgbotapi.CallbackQuery, user *models.User, data string) {
-	switch data {
-	case "admin_users":
-		b.answerCallbackQuery(query.ID, "👥 Управление пользователями пока не реализовано")
-	case "admin_subscriptions":
-		b.answerCallbackQuery(query.ID, "📱 Управление подписками пока не реализовано")
-	case "admin_payments":
-		b.answerCallbackQuery(query.ID, "💰 Управление платежами пока не реализовано")
-	case "admin_stats":
-		b.answerCallbackQuery(query.ID, "📊 Статистика пока не реализована")
-	default:
-		b.answerCallbackQuery(query.ID, "❓ Неизвестное действие админ-панели")
-	}
-}
-
-// handlePromoCodeCallback обрабатывает callback для промокода
-func (b *Bot) handlePromoCodeCallback(query *tgbotapi.CallbackQuery, user *models.User) {
+func (b *Bot) handlePromoCodeCallback(c telebot.Context) error {
 	text := "🎟️ Промокоды\n\n"
 	text += "Введите промокод для получения скидки или бонуса.\n\n"
 	text += "💡 Промокоды можно получить:\n"
@@ -715,18 +555,14 @@ func (b *Bot) handlePromoCodeCallback(query *tgbotapi.CallbackQuery, user *model
 	text += "• За участие в конкурсах\n\n"
 	text += "Просто отправьте промокод в чат."
 
-	keyboard := tgbotapi.NewInlineKeyboardMarkup(
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("🔙 Назад", "start"),
-		),
-	)
+	menu := &telebot.ReplyMarkup{}
+	backBtn := menu.Data("🔙 Назад", "start")
+	menu.Inline(menu.Row(backBtn))
 
-	b.editMessage(query.Message.Chat.ID, query.Message.MessageID, text, &keyboard)
-	b.answerCallbackQuery(query.ID, "🎟️ Введите промокод")
+	return c.Edit(text, menu)
 }
 
-// handleLanguageCallback обрабатывает callback для смены языка
-func (b *Bot) handleLanguageCallback(query *tgbotapi.CallbackQuery, user *models.User) {
+func (b *Bot) handleLanguageCallback(c telebot.Context) error {
 	text := "🌐 Выбор языка\n\n"
 	text += "Выберите предпочитаемый язык интерфейса:\n\n"
 	text += "🇷🇺 Русский (текущий)\n"
@@ -735,36 +571,38 @@ func (b *Bot) handleLanguageCallback(query *tgbotapi.CallbackQuery, user *models
 	text += "🇫🇷 Français\n\n"
 	text += "Смена языка будет доступна в следующих версиях."
 
-	keyboard := tgbotapi.NewInlineKeyboardMarkup(
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("🇷🇺 Русский", "lang_ru"),
-			tgbotapi.NewInlineKeyboardButtonData("🇺🇸 English", "lang_en"),
-		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("🇩🇪 Deutsch", "lang_de"),
-			tgbotapi.NewInlineKeyboardButtonData("🇫🇷 Français", "lang_fr"),
-		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("🔙 Назад", "start"),
-		),
+	menu := &telebot.ReplyMarkup{}
+	ruBtn := menu.Data("🇷🇺 Русский", "lang_ru")
+	enBtn := menu.Data("🇺🇸 English", "lang_en")
+	deBtn := menu.Data("🇩🇪 Deutsch", "lang_de")
+	frBtn := menu.Data("🇫🇷 Français", "lang_fr")
+	backBtn := menu.Data("🔙 Назад", "start")
+
+	menu.Inline(
+		menu.Row(ruBtn, enBtn),
+		menu.Row(deBtn, frBtn),
+		menu.Row(backBtn),
 	)
 
-	b.editMessage(query.Message.Chat.ID, query.Message.MessageID, text, &keyboard)
-	b.answerCallbackQuery(query.ID, "🌐 Выберите язык")
+	return c.Edit(text, menu)
 }
 
-// handleStatusCallback обрабатывает callback для статуса
-func (b *Bot) handleStatusCallback(query *tgbotapi.CallbackQuery, user *models.User) {
+func (b *Bot) handleStatusCallback(c telebot.Context) error {
+	user := b.getUserFromContext(c)
+	if user == nil {
+		return c.Respond(&telebot.CallbackResponse{Text: "❌ Ошибка получения данных пользователя"})
+	}
+
 	text := "📊 Статус аккаунта\n\n"
 	text += fmt.Sprintf("👤 Пользователь: %s\n", user.GetDisplayName())
 	text += fmt.Sprintf("💰 Баланс: %.2f ₽\n", user.Balance)
 	text += fmt.Sprintf("📅 Регистрация: %s\n", user.CreatedAt.Format("02.01.2006"))
 	text += fmt.Sprintf("🔗 Реферальный код: %s\n", user.ReferralCode)
-	
+
 	if user.ReferredBy != nil {
 		text += "🎁 Получен по реферальной ссылке\n"
 	}
-	
+
 	text += "\n📱 Активные подписки:\n"
 	subscriptions, err := b.subscriptionService.GetUserSubscriptions(user.ID)
 	if err == nil && len(subscriptions) > 0 {
@@ -777,18 +615,14 @@ func (b *Bot) handleStatusCallback(query *tgbotapi.CallbackQuery, user *models.U
 		text += "Нет активных подписок\n"
 	}
 
-	keyboard := tgbotapi.NewInlineKeyboardMarkup(
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("🔙 Назад", "start"),
-		),
-	)
+	menu := &telebot.ReplyMarkup{}
+	backBtn := menu.Data("🔙 Назад", "start")
+	menu.Inline(menu.Row(backBtn))
 
-	b.editMessage(query.Message.Chat.ID, query.Message.MessageID, text, &keyboard)
-	b.answerCallbackQuery(query.ID, "📊 Статус загружен")
+	return c.Edit(text, menu)
 }
 
-// handleSupportCallback обрабатывает callback для поддержки
-func (b *Bot) handleSupportCallback(query *tgbotapi.CallbackQuery, user *models.User) {
+func (b *Bot) handleSupportCallback(c telebot.Context) error {
 	text := "💬 Поддержка\n\n"
 	text += "Если у вас возникли вопросы или проблемы, обратитесь к нашей службе поддержки:\n\n"
 	text += "📧 Email: support@remnawave.com\n"
@@ -801,51 +635,48 @@ func (b *Bot) handleSupportCallback(query *tgbotapi.CallbackQuery, user *models.
 	text += "• Проблемы с подключением\n\n"
 	text += "Мы ответим в течение 15 минут!"
 
-	keyboard := tgbotapi.NewInlineKeyboardMarkup(
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("🔙 Назад", "start"),
-		),
-	)
+	menu := &telebot.ReplyMarkup{}
+	backBtn := menu.Data("🔙 Назад", "start")
+	menu.Inline(menu.Row(backBtn))
 
-	b.editMessage(query.Message.Chat.ID, query.Message.MessageID, text, &keyboard)
-	b.answerCallbackQuery(query.ID, "💬 Поддержка готова помочь")
+	return c.Edit(text, menu)
 }
 
-// handleTrialCallback обрабатывает callback для пробного периода
-func (b *Bot) handleTrialCallback(query *tgbotapi.CallbackQuery, user *models.User) {
+func (b *Bot) handleTrialCallback(c telebot.Context) error {
+	user := b.getUserFromContext(c)
+	if user == nil {
+		return c.Respond(&telebot.CallbackResponse{Text: "❌ Ошибка получения данных пользователя"})
+	}
+
 	// Проверяем, использовал ли пользователь пробный период
 	hasUsedTrial, err := b.subscriptionService.HasUsedTrial(user.ID)
 	if err != nil {
-		b.answerCallbackQuery(query.ID, "❌ Ошибка при проверке пробного периода")
-		return
+		return c.Respond(&telebot.CallbackResponse{Text: "❌ Ошибка при проверке пробного периода"})
 	}
-	
+
 	if hasUsedTrial {
 		text := "🎁 Пробный период\n\n"
 		text += "❌ Вы уже использовали пробный период.\n"
 		text += "🛒 Купите подписку для продолжения использования VPN."
-		
-		keyboard := tgbotapi.NewInlineKeyboardMarkup(
-			tgbotapi.NewInlineKeyboardRow(
-				tgbotapi.NewInlineKeyboardButtonData("🛒 Купить подписку", "buy_subscription"),
-			),
-			tgbotapi.NewInlineKeyboardRow(
-				tgbotapi.NewInlineKeyboardButtonData("🔙 Назад", "start"),
-			),
+
+		menu := &telebot.ReplyMarkup{}
+		buyBtn := menu.Data("🛒 Купить подписку", "buy_subscription")
+		backBtn := menu.Data("🔙 Назад", "start")
+
+		menu.Inline(
+			menu.Row(buyBtn),
+			menu.Row(backBtn),
 		)
-		
-		b.editMessage(query.Message.Chat.ID, query.Message.MessageID, text, &keyboard)
-		b.answerCallbackQuery(query.ID, "❌ Пробный период уже использован")
-		return
+
+		return c.Edit(text, menu)
 	}
-	
+
 	// Создаем пробную подписку
 	err = b.subscriptionService.CreateTrialSubscription(user.ID, b.config.Trial.DurationDays, b.config.Trial.TrafficLimitGB, b.config.Trial.TrafficStrategy)
 	if err != nil {
-		b.answerCallbackQuery(query.ID, "❌ Ошибка при создании пробной подписки")
-		return
+		return c.Respond(&telebot.CallbackResponse{Text: "❌ Ошибка при создании пробной подписки"})
 	}
-	
+
 	text := "🎁 Пробный период активирован!\n\n"
 	text += fmt.Sprintf("⏰ Длительность: %d дней\n", b.config.Trial.DurationDays)
 	if b.config.Trial.TrafficLimitGB > 0 {
@@ -855,26 +686,44 @@ func (b *Bot) handleTrialCallback(query *tgbotapi.CallbackQuery, user *models.Us
 	}
 	text += "\n🔗 Конфигурация VPN будет отправлена в течение 5 минут.\n"
 	text += "📱 Используйте кнопку 'Моя подписка' для управления."
-	
-	keyboard := tgbotapi.NewInlineKeyboardMarkup(
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("🔒 Моя подписка", "my_subscriptions"),
-		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("🔙 Назад", "start"),
-		),
+
+	menu := &telebot.ReplyMarkup{}
+	subBtn := menu.Data("🔒 Моя подписка", "my_subscriptions")
+	backBtn := menu.Data("🔙 Назад", "start")
+
+	menu.Inline(
+		menu.Row(subBtn),
+		menu.Row(backBtn),
 	)
-	
-	b.editMessage(query.Message.Chat.ID, query.Message.MessageID, text, &keyboard)
-	b.answerCallbackQuery(query.ID, "🎁 Пробный период активирован")
+
+	return c.Edit(text, menu)
 }
 
-// handleTariffCallback обрабатывает callback для выбора тарифа
-func (b *Bot) handleTariffCallback(query *tgbotapi.CallbackQuery, user *models.User, data string) {
+func (b *Bot) handleStartCallback(c telebot.Context) error {
+	user := b.getUserFromContext(c)
+	if user == nil {
+		return c.Respond(&telebot.CallbackResponse{Text: "❌ Ошибка получения данных пользователя"})
+	}
+
+	// Формируем приветствие
+	username := user.GetDisplayName()
+	text := fmt.Sprintf("Привет, %s👋\n\n", username)
+	text += "Что бы вы хотели сделать?"
+
+	keyboard := b.createMainMenuKeyboard(user)
+	return c.Edit(text, keyboard)
+}
+
+func (b *Bot) handleTariffCallback(c telebot.Context, data string) error {
+	user := b.getUserFromContext(c)
+	if user == nil {
+		return c.Respond(&telebot.CallbackResponse{Text: "❌ Ошибка получения данных пользователя"})
+	}
+
 	var price int
 	var duration int
 	var planName string
-	
+
 	switch data {
 	case "tariff_1":
 		price = b.config.Payments.Price1Month
@@ -893,10 +742,9 @@ func (b *Bot) handleTariffCallback(query *tgbotapi.CallbackQuery, user *models.U
 		duration = 12
 		planName = "12 месяцев"
 	default:
-		b.answerCallbackQuery(query.ID, "❌ Неизвестный тариф")
-		return
+		return c.Respond(&telebot.CallbackResponse{Text: "❌ Неизвестный тариф"})
 	}
-	
+
 	// Проверяем баланс
 	if user.Balance < float64(price) {
 		text := fmt.Sprintf("💰 Недостаточно средств\n\n")
@@ -904,117 +752,59 @@ func (b *Bot) handleTariffCallback(query *tgbotapi.CallbackQuery, user *models.U
 		text += fmt.Sprintf("💰 Ваш баланс: %.2f₽\n", user.Balance)
 		text += fmt.Sprintf("❌ Не хватает: %.2f₽\n\n", float64(price)-user.Balance)
 		text += "Пополните баланс для покупки подписки."
-		
-		keyboard := tgbotapi.NewInlineKeyboardMarkup(
-			tgbotapi.NewInlineKeyboardRow(
-				tgbotapi.NewInlineKeyboardButtonData("💰 Пополнить баланс", "balance"),
-			),
-			tgbotapi.NewInlineKeyboardRow(
-				tgbotapi.NewInlineKeyboardButtonData("🔙 Назад", "buy_subscription"),
-			),
+
+		menu := &telebot.ReplyMarkup{}
+		balanceBtn := menu.Data("💰 Пополнить баланс", "balance")
+		backBtn := menu.Data("🔙 Назад", "buy_subscription")
+
+		menu.Inline(
+			menu.Row(balanceBtn),
+			menu.Row(backBtn),
 		)
-		
-		b.editMessage(query.Message.Chat.ID, query.Message.MessageID, text, &keyboard)
-		b.answerCallbackQuery(query.ID, "❌ Недостаточно средств")
-		return
+
+		return c.Edit(text, menu)
 	}
-	
+
 	// Создаем подписку
 	err := b.subscriptionService.CreateSubscriptionByPlan(user.ID, planName, duration, price)
 	if err != nil {
-		b.answerCallbackQuery(query.ID, "❌ Ошибка при создании подписки")
-		return
+		return c.Respond(&telebot.CallbackResponse{Text: "❌ Ошибка при создании подписки"})
 	}
-	
-	// Списываем средства с баланса
+
+	// Списываем средства
 	err = b.userService.DeductBalance(user.ID, float64(price))
 	if err != nil {
-		b.answerCallbackQuery(query.ID, "❌ Ошибка при списании средств")
-		return
+		return c.Respond(&telebot.CallbackResponse{Text: "❌ Ошибка при списании средств"})
 	}
-	
+
 	text := "✅ Подписка успешно создана!\n\n"
 	text += fmt.Sprintf("📋 План: %s\n", planName)
 	text += fmt.Sprintf("💰 Стоимость: %d₽\n", price)
 	text += fmt.Sprintf("💰 Остаток на балансе: %.2f₽\n\n", user.Balance-float64(price))
 	text += "🔗 Конфигурация VPN будет отправлена в течение 5 минут.\n"
 	text += "📱 Используйте кнопку 'Моя подписка' для управления."
-	
-	keyboard := tgbotapi.NewInlineKeyboardMarkup(
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("🔒 Моя подписка", "my_subscriptions"),
-		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("🔙 Назад", "start"),
-		),
+
+	menu := &telebot.ReplyMarkup{}
+	subBtn := menu.Data("🔒 Моя подписка", "my_subscriptions")
+	backBtn := menu.Data("🔙 Назад", "start")
+
+	menu.Inline(
+		menu.Row(subBtn),
+		menu.Row(backBtn),
 	)
-	
-	b.editMessage(query.Message.Chat.ID, query.Message.MessageID, text, &keyboard)
-	b.answerCallbackQuery(query.ID, "✅ Подписка создана")
+
+	return c.Edit(text, menu)
 }
 
-// handleStartCallback обрабатывает callback для возврата в главное меню
-func (b *Bot) handleStartCallback(query *tgbotapi.CallbackQuery, user *models.User) {
-	// Формируем приветствие с именем пользователя
-	username := user.GetDisplayName()
-	text := fmt.Sprintf("Привет, %s👋\n\n", username)
-	text += "Что бы вы хотели сделать?"
-
-	// Формируем кнопку с балансом
-	balanceText := fmt.Sprintf("Баланс %.0f₽", user.Balance)
-
-	// Создаем кнопки главного меню
-	var keyboardRows [][]tgbotapi.InlineKeyboardButton
-	
-	// Баланс
-	keyboardRows = append(keyboardRows, []tgbotapi.InlineKeyboardButton{
-		tgbotapi.NewInlineKeyboardButtonData("💰 " + balanceText, "balance"),
-	})
-	
-	// Купить
-	keyboardRows = append(keyboardRows, []tgbotapi.InlineKeyboardButton{
-		tgbotapi.NewInlineKeyboardButtonData("🚀 Купить", "buy_subscription"),
-	})
-	
-	// Пробный период (если включен и пользователь еще не использовал)
-	if b.config.Trial.Enabled {
-		// Проверяем, использовал ли пользователь пробный период
-		hasUsedTrial, err := b.subscriptionService.HasUsedTrial(user.ID)
-		if err == nil && !hasUsedTrial {
-			keyboardRows = append(keyboardRows, []tgbotapi.InlineKeyboardButton{
-				tgbotapi.NewInlineKeyboardButtonData("🎁 Пробный период", "trial"),
-			})
-		}
+func (b *Bot) handlePaymentCallback(c telebot.Context, method string) error {
+	switch method {
+	case "payment_stars":
+		return c.Respond(&telebot.CallbackResponse{Text: "⭐ Платеж через Stars пока не реализован"})
+	case "payment_tribute":
+		return c.Respond(&telebot.CallbackResponse{Text: "💎 Платеж через Tribute пока не реализован"})
+	case "payment_yookassa":
+		return c.Respond(&telebot.CallbackResponse{Text: "💳 Платеж через ЮKassa пока не реализован"})
+	default:
+		return c.Respond(&telebot.CallbackResponse{Text: "❓ Неизвестный способ оплаты"})
 	}
-	
-	// Моя подписка - WebApp кнопка
-	webAppButton := tgbotapi.InlineKeyboardButton{
-		Text: "🔒 Моя подписка",
-		WebApp: &tgbotapi.WebApp{
-			URL: b.config.MiniApp.URL,
-		},
-	}
-	keyboardRows = append(keyboardRows, []tgbotapi.InlineKeyboardButton{webAppButton})
-	
-	// Рефералы и Промокод
-	keyboardRows = append(keyboardRows, []tgbotapi.InlineKeyboardButton{
-		tgbotapi.NewInlineKeyboardButtonData("🎁 Рефералы", "referrals"),
-		tgbotapi.NewInlineKeyboardButtonData("🎟️ Промокод", "promo_code"),
-	})
-	
-	// Язык и Статус
-	keyboardRows = append(keyboardRows, []tgbotapi.InlineKeyboardButton{
-		tgbotapi.NewInlineKeyboardButtonData("🌐 Язык", "language"),
-		tgbotapi.NewInlineKeyboardButtonData("📊 Статус", "status"),
-	})
-	
-	// Поддержка
-	keyboardRows = append(keyboardRows, []tgbotapi.InlineKeyboardButton{
-		tgbotapi.NewInlineKeyboardButtonData("💬 Поддержка", "support"),
-	})
-
-	keyboard := tgbotapi.NewInlineKeyboardMarkup(keyboardRows...)
-
-	b.editMessage(query.Message.Chat.ID, query.Message.MessageID, text, &keyboard)
-	b.answerCallbackQuery(query.ID, "🏠 Главное меню")
 }
