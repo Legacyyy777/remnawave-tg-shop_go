@@ -125,4 +125,4 @@ volumes:
 
 networks:
   remnawave-network:
-    driver: bridge
+    external: true
