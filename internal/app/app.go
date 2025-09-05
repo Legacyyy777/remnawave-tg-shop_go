@@ -18,6 +18,7 @@ import (
 	"remnawave-tg-shop/internal/services/remnawave"
 
 	"github.com/gin-gonic/gin"
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
 // App представляет основное приложение
@@ -152,8 +153,22 @@ func (a *App) setupHTTPServer() error {
 
 // handleTelegramWebhook обрабатывает webhook от Telegram
 func (a *App) handleTelegramWebhook(c *gin.Context) {
-	// Здесь должна быть обработка webhook'а от Telegram
-	// Пока что просто возвращаем OK
+	var update tgbotapi.Update
+	if err := c.ShouldBindJSON(&update); err != nil {
+		a.logger.Error("Failed to bind webhook update", "error", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON"})
+		return
+	}
+
+	a.logger.Info("Received webhook update", "update_id", update.UpdateID)
+
+	// Обрабатываем обновление через бота
+	if err := a.bot.HandleUpdate(update); err != nil {
+		a.logger.Error("Failed to handle update", "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to handle update"})
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }
 

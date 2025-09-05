@@ -98,13 +98,19 @@ func (b *Bot) startPolling() error {
 	return nil
 }
 
+// HandleUpdate обрабатывает обновление от Telegram (публичный метод)
+func (b *Bot) HandleUpdate(update tgbotapi.Update) error {
+	return b.handleUpdate(update)
+}
+
 // handleUpdate обрабатывает обновление от Telegram
-func (b *Bot) handleUpdate(update tgbotapi.Update) {
+func (b *Bot) handleUpdate(update tgbotapi.Update) error {
 	if update.Message != nil {
 		b.handleMessage(update.Message)
 	} else if update.CallbackQuery != nil {
 		b.handleCallbackQuery(update.CallbackQuery)
 	}
+	return nil
 }
 
 // handleMessage обрабатывает сообщения
