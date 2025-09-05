@@ -75,53 +75,32 @@ func (b *Bot) setupHandlers() {
 	b.api.Handle("/referrals", b.handleReferralsCommand)
 	b.api.Handle("/admin", b.handleAdminCommand)
 
-	// Callback queries
-	b.api.Handle(&balanceBtn, b.handleBalanceCallback)
-	b.api.Handle(&buySubscriptionBtn, b.handleBuySubscriptionCallback)
-	b.api.Handle(&mySubscriptionsBtn, b.handleMySubscriptionsCallback)
-	b.api.Handle(&referralsBtn, b.handleReferralsCallback)
-	b.api.Handle(&promoCodeBtn, b.handlePromoCodeCallback)
-	b.api.Handle(&languageBtn, b.handleLanguageCallback)
-	b.api.Handle(&statusBtn, b.handleStatusCallback)
-	b.api.Handle(&supportBtn, b.handleSupportCallback)
-	b.api.Handle(&trialBtn, b.handleTrialCallback)
-	b.api.Handle(&startBtn, b.handleStartCallback)
+	// Callback queries - используем строки вместо указателей на кнопки
+	b.api.Handle("\fbalance", b.handleBalanceCallback)
+	b.api.Handle("\fbuy_subscription", b.handleBuySubscriptionCallback)
+	b.api.Handle("\fmy_subscriptions", b.handleMySubscriptionsCallback)
+	b.api.Handle("\freferrals", b.handleReferralsCallback)
+	b.api.Handle("\fpromo_code", b.handlePromoCodeCallback)
+	b.api.Handle("\flanguage", b.handleLanguageCallback)
+	b.api.Handle("\fstatus", b.handleStatusCallback)
+	b.api.Handle("\fsupport", b.handleSupportCallback)
+	b.api.Handle("\ftrial", b.handleTrialCallback)
+	b.api.Handle("\fstart", b.handleStartCallback)
 
 	// Tariff callbacks
-	b.api.Handle(&tariff1Btn, func(c telebot.Context) error { return b.handleTariffCallback(c, "tariff_1") })
-	b.api.Handle(&tariff3Btn, func(c telebot.Context) error { return b.handleTariffCallback(c, "tariff_3") })
-	b.api.Handle(&tariff6Btn, func(c telebot.Context) error { return b.handleTariffCallback(c, "tariff_6") })
-	b.api.Handle(&tariff12Btn, func(c telebot.Context) error { return b.handleTariffCallback(c, "tariff_12") })
+	b.api.Handle("\ftariff_1", func(c telebot.Context) error { return b.handleTariffCallback(c, "tariff_1") })
+	b.api.Handle("\ftariff_3", func(c telebot.Context) error { return b.handleTariffCallback(c, "tariff_3") })
+	b.api.Handle("\ftariff_6", func(c telebot.Context) error { return b.handleTariffCallback(c, "tariff_6") })
+	b.api.Handle("\ftariff_12", func(c telebot.Context) error { return b.handleTariffCallback(c, "tariff_12") })
 
 	// Payment callbacks
-	b.api.Handle(&paymentStarsBtn, func(c telebot.Context) error { return b.handlePaymentCallback(c, "payment_stars") })
-	b.api.Handle(&paymentTributeBtn, func(c telebot.Context) error { return b.handlePaymentCallback(c, "payment_tribute") })
-	b.api.Handle(&paymentYooKassaBtn, func(c telebot.Context) error { return b.handlePaymentCallback(c, "payment_yookassa") })
+	b.api.Handle("\fpayment_stars", func(c telebot.Context) error { return b.handlePaymentCallback(c, "payment_stars") })
+	b.api.Handle("\fpayment_tribute", func(c telebot.Context) error { return b.handlePaymentCallback(c, "payment_tribute") })
+	b.api.Handle("\fpayment_yookassa", func(c telebot.Context) error { return b.handlePaymentCallback(c, "payment_yookassa") })
 
 	// Text messages
 	b.api.Handle(telebot.OnText, b.handleTextMessage)
 }
-
-// Определяем кнопки
-var (
-	balanceBtn           = &telebot.Btn{Unique: "balance"}
-	buySubscriptionBtn   = &telebot.Btn{Unique: "buy_subscription"}
-	mySubscriptionsBtn   = &telebot.Btn{Unique: "my_subscriptions"}
-	referralsBtn         = &telebot.Btn{Unique: "referrals"}
-	promoCodeBtn         = &telebot.Btn{Unique: "promo_code"}
-	languageBtn          = &telebot.Btn{Unique: "language"}
-	statusBtn            = &telebot.Btn{Unique: "status"}
-	supportBtn           = &telebot.Btn{Unique: "support"}
-	trialBtn             = &telebot.Btn{Unique: "trial"}
-	startBtn             = &telebot.Btn{Unique: "start"}
-	tariff1Btn           = &telebot.Btn{Unique: "tariff_1"}
-	tariff3Btn           = &telebot.Btn{Unique: "tariff_3"}
-	tariff6Btn           = &telebot.Btn{Unique: "tariff_6"}
-	tariff12Btn          = &telebot.Btn{Unique: "tariff_12"}
-	paymentStarsBtn      = &telebot.Btn{Unique: "payment_stars"}
-	paymentTributeBtn    = &telebot.Btn{Unique: "payment_tribute"}
-	paymentYooKassaBtn   = &telebot.Btn{Unique: "payment_yookassa"}
-)
 
 // authMiddleware - middleware для аутентификации и логирования
 func (b *Bot) authMiddleware(next telebot.HandlerFunc) telebot.HandlerFunc {
@@ -202,7 +181,7 @@ func (b *Bot) createMainMenuKeyboard(user *models.User) *telebot.ReplyMarkup {
 
 	// Баланс
 	balanceText := fmt.Sprintf("💰 Баланс %.0f₽", user.Balance)
-	balanceBtn.Text = balanceText
+	balanceBtn := menu.Data(balanceText, "balance")
 
 	// Основные кнопки
 	buyBtn := menu.Data("🚀 Купить", "buy_subscription")
@@ -229,7 +208,7 @@ func (b *Bot) createMainMenuKeyboard(user *models.User) *telebot.ReplyMarkup {
 
 	// Формируем клавиатуру
 	rows := []telebot.Row{
-		{*balanceBtn},
+		{balanceBtn},
 		{buyBtn},
 	}
 
