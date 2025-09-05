@@ -203,28 +203,53 @@ func (b *Bot) handleStartCommand(message *tgbotapi.Message, user *models.User, a
 	// Формируем кнопку с балансом
 	balanceText := fmt.Sprintf("Баланс %.0f₽", user.Balance)
 
-	keyboard := tgbotapi.NewInlineKeyboardMarkup(
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("💰 " + balanceText, "balance"),
-		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("🚀 Купить", "buy_subscription"),
-		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("🔒 Моя подписка", "my_subscriptions"),
-		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("🎁 Рефералы", "referrals"),
-			tgbotapi.NewInlineKeyboardButtonData("🎟️ Промокод", "promo_code"),
-		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("🌐 Язык", "language"),
-			tgbotapi.NewInlineKeyboardButtonData("📊 Статус", "status"),
-		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("💬 Поддержка", "support"),
-		),
-	)
+	// Создаем кнопки главного меню
+	var keyboardRows [][]tgbotapi.InlineKeyboardButton
+	
+	// Баланс
+	keyboardRows = append(keyboardRows, []tgbotapi.InlineKeyboardButton{
+		tgbotapi.NewInlineKeyboardButtonData("💰 " + balanceText, "balance"),
+	})
+	
+	// Купить
+	keyboardRows = append(keyboardRows, []tgbotapi.InlineKeyboardButton{
+		tgbotapi.NewInlineKeyboardButtonData("🚀 Купить", "buy_subscription"),
+	})
+	
+	// Пробный период (если включен и пользователь еще не использовал)
+	if b.config.Trial.Enabled {
+		// Проверяем, использовал ли пользователь пробный период
+		hasUsedTrial, err := b.subscriptionService.HasUsedTrial(user.ID)
+		if err == nil && !hasUsedTrial {
+			keyboardRows = append(keyboardRows, []tgbotapi.InlineKeyboardButton{
+				tgbotapi.NewInlineKeyboardButtonData("🎁 Пробный период", "trial"),
+			})
+		}
+	}
+	
+	// Моя подписка
+	keyboardRows = append(keyboardRows, []tgbotapi.InlineKeyboardButton{
+		tgbotapi.NewInlineKeyboardButtonData("🔒 Моя подписка", "my_subscriptions"),
+	})
+	
+	// Рефералы и Промокод
+	keyboardRows = append(keyboardRows, []tgbotapi.InlineKeyboardButton{
+		tgbotapi.NewInlineKeyboardButtonData("🎁 Рефералы", "referrals"),
+		tgbotapi.NewInlineKeyboardButtonData("🎟️ Промокод", "promo_code"),
+	})
+	
+	// Язык и Статус
+	keyboardRows = append(keyboardRows, []tgbotapi.InlineKeyboardButton{
+		tgbotapi.NewInlineKeyboardButtonData("🌐 Язык", "language"),
+		tgbotapi.NewInlineKeyboardButtonData("📊 Статус", "status"),
+	})
+	
+	// Поддержка
+	keyboardRows = append(keyboardRows, []tgbotapi.InlineKeyboardButton{
+		tgbotapi.NewInlineKeyboardButtonData("💬 Поддержка", "support"),
+	})
+
+	keyboard := tgbotapi.NewInlineKeyboardMarkup(keyboardRows...)
 
 	msg := tgbotapi.NewMessage(message.Chat.ID, text)
 	msg.ReplyMarkup = keyboard
@@ -429,8 +454,12 @@ func (b *Bot) handleCallbackQuery(query *tgbotapi.CallbackQuery) {
 		b.handleStatusCallback(query, user)
 	case data == "support":
 		b.handleSupportCallback(query, user)
+	case data == "trial":
+		b.handleTrialCallback(query, user)
 	case data == "start":
 		b.handleStartCallback(query, user)
+	case strings.HasPrefix(data, "tariff_"):
+		b.handleTariffCallback(query, user, data)
 	case strings.HasPrefix(data, "payment_"):
 		b.handlePaymentCallback(query, user, data)
 	case strings.HasPrefix(data, "admin_"):
@@ -480,15 +509,38 @@ func (b *Bot) handleBalanceCallback(query *tgbotapi.CallbackQuery, user *models.
 	text := fmt.Sprintf("💰 Ваш баланс: %.2f ₽\n\n", user.Balance)
 	text += "💳 Пополнить баланс:"
 
-	keyboard := tgbotapi.NewInlineKeyboardMarkup(
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("⭐ Telegram Stars", "payment_stars"),
-			tgbotapi.NewInlineKeyboardButtonData("💎 Tribute", "payment_tribute"),
-		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("💳 ЮKassa", "payment_yookassa"),
-		),
-	)
+	// Создаем кнопки оплаты на основе настроек
+	var paymentButtons []tgbotapi.InlineKeyboardButton
+	
+	if b.config.Payment.StarsEnabled {
+		paymentButtons = append(paymentButtons, tgbotapi.NewInlineKeyboardButtonData("⭐ Telegram Stars", "payment_stars"))
+	}
+	if b.config.Payment.TributeEnabled {
+		paymentButtons = append(paymentButtons, tgbotapi.NewInlineKeyboardButtonData("💎 Tribute", "payment_tribute"))
+	}
+	if b.config.Payment.YooKassaEnabled {
+		paymentButtons = append(paymentButtons, tgbotapi.NewInlineKeyboardButtonData("💳 ЮKassa", "payment_yookassa"))
+	}
+	if b.config.Payment.CryptoPayEnabled {
+		paymentButtons = append(paymentButtons, tgbotapi.NewInlineKeyboardButtonData("₿ CryptoPay", "payment_cryptopay"))
+	}
+
+	// Группируем кнопки по 2 в ряд
+	var keyboardRows [][]tgbotapi.InlineKeyboardButton
+	for i := 0; i < len(paymentButtons); i += 2 {
+		if i+1 < len(paymentButtons) {
+			keyboardRows = append(keyboardRows, []tgbotapi.InlineKeyboardButton{paymentButtons[i], paymentButtons[i+1]})
+		} else {
+			keyboardRows = append(keyboardRows, []tgbotapi.InlineKeyboardButton{paymentButtons[i]})
+		}
+	}
+	
+	// Добавляем кнопку "Назад"
+	keyboardRows = append(keyboardRows, []tgbotapi.InlineKeyboardButton{
+		tgbotapi.NewInlineKeyboardButtonData("🔙 Назад", "start"),
+	})
+
+	keyboard := tgbotapi.NewInlineKeyboardMarkup(keyboardRows...)
 
 	b.editMessage(query.Message.Chat.ID, query.Message.MessageID, text, &keyboard)
 	b.answerCallbackQuery(query.ID, "💰 Баланс обновлен")
@@ -496,76 +548,69 @@ func (b *Bot) handleBalanceCallback(query *tgbotapi.CallbackQuery, user *models.
 
 // handleBuySubscriptionCallback обрабатывает callback для покупки подписки
 func (b *Bot) handleBuySubscriptionCallback(query *tgbotapi.CallbackQuery, user *models.User) {
-	text := "🛒 Выберите сервер:\n\n"
-	text += "1. 🇺🇸 США - 299₽/месяц\n"
-	text += "2. 🇩🇪 Германия - 399₽/месяц\n"
-	text += "3. 🇯🇵 Япония - 499₽/месяц\n\n"
-	text += "Выберите сервер для покупки подписки:"
+	text := "🛒 Выберите тарифный план:\n\n"
+	
+	// Создаем кнопки тарифов на основе настроек
+	var tariffButtons []tgbotapi.InlineKeyboardButton
+	
+	if b.config.Payments.Price1Month > 0 {
+		text += fmt.Sprintf("1️⃣ 1 месяц - %d₽\n", b.config.Payments.Price1Month)
+		tariffButtons = append(tariffButtons, tgbotapi.NewInlineKeyboardButtonData("1️⃣ 1 месяц", "tariff_1"))
+	}
+	if b.config.Payments.Price3Months > 0 {
+		text += fmt.Sprintf("3️⃣ 3 месяца - %d₽\n", b.config.Payments.Price3Months)
+		tariffButtons = append(tariffButtons, tgbotapi.NewInlineKeyboardButtonData("3️⃣ 3 месяца", "tariff_3"))
+	}
+	if b.config.Payments.Price6Months > 0 {
+		text += fmt.Sprintf("6️⃣ 6 месяцев - %d₽\n", b.config.Payments.Price6Months)
+		tariffButtons = append(tariffButtons, tgbotapi.NewInlineKeyboardButtonData("6️⃣ 6 месяцев", "tariff_6"))
+	}
+	if b.config.Payments.Price12Months > 0 {
+		text += fmt.Sprintf("1️⃣2️⃣ 12 месяцев - %d₽\n", b.config.Payments.Price12Months)
+		tariffButtons = append(tariffButtons, tgbotapi.NewInlineKeyboardButtonData("1️⃣2️⃣ 12 месяцев", "tariff_12"))
+	}
+	
+	text += "\nВыберите тарифный план:"
 
+	// Группируем кнопки по 2 в ряд
+	var keyboardRows [][]tgbotapi.InlineKeyboardButton
+	for i := 0; i < len(tariffButtons); i += 2 {
+		if i+1 < len(tariffButtons) {
+			keyboardRows = append(keyboardRows, []tgbotapi.InlineKeyboardButton{tariffButtons[i], tariffButtons[i+1]})
+		} else {
+			keyboardRows = append(keyboardRows, []tgbotapi.InlineKeyboardButton{tariffButtons[i]})
+		}
+	}
+	
+	// Добавляем кнопку "Назад"
+	keyboardRows = append(keyboardRows, []tgbotapi.InlineKeyboardButton{
+		tgbotapi.NewInlineKeyboardButtonData("🔙 Назад", "start"),
+	})
+
+	keyboard := tgbotapi.NewInlineKeyboardMarkup(keyboardRows...)
+
+	b.editMessage(query.Message.Chat.ID, query.Message.MessageID, text, &keyboard)
+	b.answerCallbackQuery(query.ID, "🛒 Выберите тариф")
+}
+
+// handleMySubscriptionsCallback обрабатывает callback для моих подписок
+func (b *Bot) handleMySubscriptionsCallback(query *tgbotapi.CallbackQuery, user *models.User) {
+	// Открываем миниапп
+	webApp := tgbotapi.WebAppInfo{URL: b.config.MiniApp.URL}
 	keyboard := tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("🇺🇸 США", "server_1"),
-			tgbotapi.NewInlineKeyboardButtonData("🇩🇪 Германия", "server_2"),
-		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("🇯🇵 Япония", "server_3"),
+			tgbotapi.NewInlineKeyboardButtonWebApp("🔒 Моя подписка", webApp),
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("🔙 Назад", "start"),
 		),
 	)
 
-	b.editMessage(query.Message.Chat.ID, query.Message.MessageID, text, &keyboard)
-	b.answerCallbackQuery(query.ID, "🛒 Выберите сервер")
-}
-
-// handleMySubscriptionsCallback обрабатывает callback для моих подписок
-func (b *Bot) handleMySubscriptionsCallback(query *tgbotapi.CallbackQuery, user *models.User) {
-	subscriptions, err := b.subscriptionService.GetUserSubscriptions(user.ID)
-	if err != nil {
-		b.answerCallbackQuery(query.ID, "❌ Ошибка при получении подписок")
-		return
-	}
-
-	if len(subscriptions) == 0 {
-		text := "📱 У вас пока нет активных подписок.\n\n"
-		text += "🛒 Купить подписку:"
-
-		keyboard := tgbotapi.NewInlineKeyboardMarkup(
-			[]tgbotapi.InlineKeyboardButton{
-				tgbotapi.NewInlineKeyboardButtonData("🛒 Купить подписку", "buy_subscription"),
-			},
-		)
-
-		b.editMessage(query.Message.Chat.ID, query.Message.MessageID, text, &keyboard)
-		b.answerCallbackQuery(query.ID, "📱 Подписки не найдены")
-		return
-	}
-
-	text := "📱 Ваши подписки:\n\n"
-	for i, sub := range subscriptions {
-		status := "🟢 Активна"
-		if !sub.IsActive() {
-			status = "🔴 " + sub.GetStatusText()
-		}
-
-		text += fmt.Sprintf("%d. %s - %s\n", i+1, sub.ServerName, sub.PlanName)
-		text += fmt.Sprintf("   Статус: %s\n", status)
-		text += fmt.Sprintf("   Истекает: %s\n", sub.ExpiresAt.Format("02.01.2006 15:04"))
-		if sub.IsActive() {
-			text += fmt.Sprintf("   Осталось дней: %d\n", sub.GetDaysLeft())
-		}
-		text += "\n"
-	}
-
-	keyboard := tgbotapi.NewInlineKeyboardMarkup(
-		[]tgbotapi.InlineKeyboardButton{
-			tgbotapi.NewInlineKeyboardButtonData("🛒 Купить подписку", "buy_subscription"),
-		},
-	)
+	text := "📱 Управление подписками\n\n"
+	text += "Нажмите на кнопку ниже, чтобы открыть приложение для управления вашими подписками."
 
 	b.editMessage(query.Message.Chat.ID, query.Message.MessageID, text, &keyboard)
-	b.answerCallbackQuery(query.ID, "📱 Подписки загружены")
+	b.answerCallbackQuery(query.ID, "📱 Открываем приложение")
 }
 
 // handleReferralsCallback обрабатывает callback для рефералов
@@ -708,6 +753,148 @@ func (b *Bot) handleSupportCallback(query *tgbotapi.CallbackQuery, user *models.
 	b.answerCallbackQuery(query.ID, "💬 Поддержка готова помочь")
 }
 
+// handleTrialCallback обрабатывает callback для пробного периода
+func (b *Bot) handleTrialCallback(query *tgbotapi.CallbackQuery, user *models.User) {
+	// Проверяем, использовал ли пользователь пробный период
+	hasUsedTrial, err := b.subscriptionService.HasUsedTrial(user.ID)
+	if err != nil {
+		b.answerCallbackQuery(query.ID, "❌ Ошибка при проверке пробного периода")
+		return
+	}
+	
+	if hasUsedTrial {
+		text := "🎁 Пробный период\n\n"
+		text += "❌ Вы уже использовали пробный период.\n"
+		text += "🛒 Купите подписку для продолжения использования VPN."
+		
+		keyboard := tgbotapi.NewInlineKeyboardMarkup(
+			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData("🛒 Купить подписку", "buy_subscription"),
+			),
+			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData("🔙 Назад", "start"),
+			),
+		)
+		
+		b.editMessage(query.Message.Chat.ID, query.Message.MessageID, text, &keyboard)
+		b.answerCallbackQuery(query.ID, "❌ Пробный период уже использован")
+		return
+	}
+	
+	// Создаем пробную подписку
+	err = b.subscriptionService.CreateTrialSubscription(user.ID, b.config.Trial.DurationDays, b.config.Trial.TrafficLimitGB, b.config.Trial.TrafficStrategy)
+	if err != nil {
+		b.answerCallbackQuery(query.ID, "❌ Ошибка при создании пробной подписки")
+		return
+	}
+	
+	text := "🎁 Пробный период активирован!\n\n"
+	text += fmt.Sprintf("⏰ Длительность: %d дней\n", b.config.Trial.DurationDays)
+	if b.config.Trial.TrafficLimitGB > 0 {
+		text += fmt.Sprintf("📊 Лимит трафика: %d ГБ\n", b.config.Trial.TrafficLimitGB)
+	} else {
+		text += "📊 Лимит трафика: безлимитный\n"
+	}
+	text += "\n🔗 Конфигурация VPN будет отправлена в течение 5 минут.\n"
+	text += "📱 Используйте кнопку 'Моя подписка' для управления."
+	
+	keyboard := tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("🔒 Моя подписка", "my_subscriptions"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("🔙 Назад", "start"),
+		),
+	)
+	
+	b.editMessage(query.Message.Chat.ID, query.Message.MessageID, text, &keyboard)
+	b.answerCallbackQuery(query.ID, "🎁 Пробный период активирован")
+}
+
+// handleTariffCallback обрабатывает callback для выбора тарифа
+func (b *Bot) handleTariffCallback(query *tgbotapi.CallbackQuery, user *models.User, data string) {
+	var price int
+	var duration int
+	var planName string
+	
+	switch data {
+	case "tariff_1":
+		price = b.config.Payments.Price1Month
+		duration = 1
+		planName = "1 месяц"
+	case "tariff_3":
+		price = b.config.Payments.Price3Months
+		duration = 3
+		planName = "3 месяца"
+	case "tariff_6":
+		price = b.config.Payments.Price6Months
+		duration = 6
+		planName = "6 месяцев"
+	case "tariff_12":
+		price = b.config.Payments.Price12Months
+		duration = 12
+		planName = "12 месяцев"
+	default:
+		b.answerCallbackQuery(query.ID, "❌ Неизвестный тариф")
+		return
+	}
+	
+	// Проверяем баланс
+	if user.Balance < float64(price) {
+		text := fmt.Sprintf("💰 Недостаточно средств\n\n")
+		text += fmt.Sprintf("💳 Стоимость: %d₽\n", price)
+		text += fmt.Sprintf("💰 Ваш баланс: %.2f₽\n", user.Balance)
+		text += fmt.Sprintf("❌ Не хватает: %.2f₽\n\n", float64(price)-user.Balance)
+		text += "Пополните баланс для покупки подписки."
+		
+		keyboard := tgbotapi.NewInlineKeyboardMarkup(
+			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData("💰 Пополнить баланс", "balance"),
+			),
+			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData("🔙 Назад", "buy_subscription"),
+			),
+		)
+		
+		b.editMessage(query.Message.Chat.ID, query.Message.MessageID, text, &keyboard)
+		b.answerCallbackQuery(query.ID, "❌ Недостаточно средств")
+		return
+	}
+	
+	// Создаем подписку
+	err := b.subscriptionService.CreateSubscription(user.ID, planName, duration, price)
+	if err != nil {
+		b.answerCallbackQuery(query.ID, "❌ Ошибка при создании подписки")
+		return
+	}
+	
+	// Списываем средства с баланса
+	err = b.userService.DeductBalance(user.ID, float64(price))
+	if err != nil {
+		b.answerCallbackQuery(query.ID, "❌ Ошибка при списании средств")
+		return
+	}
+	
+	text := "✅ Подписка успешно создана!\n\n"
+	text += fmt.Sprintf("📋 План: %s\n", planName)
+	text += fmt.Sprintf("💰 Стоимость: %d₽\n", price)
+	text += fmt.Sprintf("💰 Остаток на балансе: %.2f₽\n\n", user.Balance-float64(price))
+	text += "🔗 Конфигурация VPN будет отправлена в течение 5 минут.\n"
+	text += "📱 Используйте кнопку 'Моя подписка' для управления."
+	
+	keyboard := tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("🔒 Моя подписка", "my_subscriptions"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("🔙 Назад", "start"),
+		),
+	)
+	
+	b.editMessage(query.Message.Chat.ID, query.Message.MessageID, text, &keyboard)
+	b.answerCallbackQuery(query.ID, "✅ Подписка создана")
+}
+
 // handleStartCallback обрабатывает callback для возврата в главное меню
 func (b *Bot) handleStartCallback(query *tgbotapi.CallbackQuery, user *models.User) {
 	// Формируем приветствие с именем пользователя
@@ -718,28 +905,53 @@ func (b *Bot) handleStartCallback(query *tgbotapi.CallbackQuery, user *models.Us
 	// Формируем кнопку с балансом
 	balanceText := fmt.Sprintf("Баланс %.0f₽", user.Balance)
 
-	keyboard := tgbotapi.NewInlineKeyboardMarkup(
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("💰 " + balanceText, "balance"),
-		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("🚀 Купить", "buy_subscription"),
-		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("🔒 Моя подписка", "my_subscriptions"),
-		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("🎁 Рефералы", "referrals"),
-			tgbotapi.NewInlineKeyboardButtonData("🎟️ Промокод", "promo_code"),
-		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("🌐 Язык", "language"),
-			tgbotapi.NewInlineKeyboardButtonData("📊 Статус", "status"),
-		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("💬 Поддержка", "support"),
-		),
-	)
+	// Создаем кнопки главного меню
+	var keyboardRows [][]tgbotapi.InlineKeyboardButton
+	
+	// Баланс
+	keyboardRows = append(keyboardRows, []tgbotapi.InlineKeyboardButton{
+		tgbotapi.NewInlineKeyboardButtonData("💰 " + balanceText, "balance"),
+	})
+	
+	// Купить
+	keyboardRows = append(keyboardRows, []tgbotapi.InlineKeyboardButton{
+		tgbotapi.NewInlineKeyboardButtonData("🚀 Купить", "buy_subscription"),
+	})
+	
+	// Пробный период (если включен и пользователь еще не использовал)
+	if b.config.Trial.Enabled {
+		// Проверяем, использовал ли пользователь пробный период
+		hasUsedTrial, err := b.subscriptionService.HasUsedTrial(user.ID)
+		if err == nil && !hasUsedTrial {
+			keyboardRows = append(keyboardRows, []tgbotapi.InlineKeyboardButton{
+				tgbotapi.NewInlineKeyboardButtonData("🎁 Пробный период", "trial"),
+			})
+		}
+	}
+	
+	// Моя подписка
+	keyboardRows = append(keyboardRows, []tgbotapi.InlineKeyboardButton{
+		tgbotapi.NewInlineKeyboardButtonData("🔒 Моя подписка", "my_subscriptions"),
+	})
+	
+	// Рефералы и Промокод
+	keyboardRows = append(keyboardRows, []tgbotapi.InlineKeyboardButton{
+		tgbotapi.NewInlineKeyboardButtonData("🎁 Рефералы", "referrals"),
+		tgbotapi.NewInlineKeyboardButtonData("🎟️ Промокод", "promo_code"),
+	})
+	
+	// Язык и Статус
+	keyboardRows = append(keyboardRows, []tgbotapi.InlineKeyboardButton{
+		tgbotapi.NewInlineKeyboardButtonData("🌐 Язык", "language"),
+		tgbotapi.NewInlineKeyboardButtonData("📊 Статус", "status"),
+	})
+	
+	// Поддержка
+	keyboardRows = append(keyboardRows, []tgbotapi.InlineKeyboardButton{
+		tgbotapi.NewInlineKeyboardButtonData("💬 Поддержка", "support"),
+	})
+
+	keyboard := tgbotapi.NewInlineKeyboardMarkup(keyboardRows...)
 
 	b.editMessage(query.Message.Chat.ID, query.Message.MessageID, text, &keyboard)
 	b.answerCallbackQuery(query.ID, "🏠 Главное меню")

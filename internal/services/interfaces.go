@@ -16,6 +16,7 @@ type UserService interface {
 	UnblockUser(telegramID int64) error
 	AddBalance(userID uuid.UUID, amount float64) error
 	SubtractBalance(userID uuid.UUID, amount float64) error
+	DeductBalance(userID uuid.UUID, amount float64) error
 	GetReferrals(userID uuid.UUID) ([]models.User, error)
 	SearchUsers(query string, limit int) ([]models.User, error)
 	IsAdmin(telegramID int64) bool
@@ -24,6 +25,9 @@ type UserService interface {
 // SubscriptionService интерфейс для работы с подписками
 type SubscriptionService interface {
 	CreateSubscription(userID uuid.UUID, serverID, planID int) (*models.Subscription, error)
+	CreateSubscription(userID uuid.UUID, planName string, durationMonths, price int) error
+	CreateTrialSubscription(userID uuid.UUID, durationDays, trafficLimitGB int, trafficStrategy string) error
+	HasUsedTrial(userID uuid.UUID) (bool, error)
 	GetUserSubscriptions(userID uuid.UUID) ([]models.Subscription, error)
 	GetActiveSubscriptions(userID uuid.UUID) ([]models.Subscription, error)
 	GetSubscription(id uuid.UUID) (*models.Subscription, error)

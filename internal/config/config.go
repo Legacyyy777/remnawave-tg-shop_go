@@ -37,6 +37,12 @@ type Config struct {
 	// Monitoring
 	Monitoring MonitoringConfig
 
+	// Trial Settings
+	Trial TrialConfig
+
+	// Mini App
+	MiniApp MiniAppConfig
+
 	// Environment
 	Environment string
 	LogLevel    string
@@ -60,6 +66,18 @@ type RemnawaveConfig struct {
 type PaymentConfig struct {
 	Tribute TributeConfig
 	YooKassa YooKassaConfig
+	
+	// Payment Method Toggles
+	StarsEnabled     bool
+	TributeEnabled   bool
+	YooKassaEnabled  bool
+	CryptoPayEnabled bool
+	
+	// Subscription Prices
+	Price1Month   int
+	Price3Months  int
+	Price6Months  int
+	Price12Months int
 }
 
 type TributeConfig struct {
@@ -90,6 +108,17 @@ type SecurityConfig struct {
 type MonitoringConfig struct {
 	HealthCheckInterval   time.Duration
 	StatsCleanupInterval  time.Duration
+}
+
+type TrialConfig struct {
+	Enabled           bool
+	DurationDays      int
+	TrafficLimitGB    int
+	TrafficStrategy   string
+}
+
+type MiniAppConfig struct {
+	URL string
 }
 
 // Load загружает конфигурацию из переменных окружения
@@ -130,6 +159,18 @@ func Load() (*Config, error) {
 	cfg.Payments.YooKassa.ShopID = getEnv("YOOKASSA_SHOP_ID", "")
 	cfg.Payments.YooKassa.SecretKey = getEnv("YOOKASSA_SECRET_KEY", "")
 	cfg.Payments.YooKassa.WebhookURL = getEnv("YOOKASSA_WEBHOOK_URL", "")
+	
+	// Payment Method Toggles
+	cfg.Payments.StarsEnabled = getEnvAsBool("STARS_ENABLED", true)
+	cfg.Payments.TributeEnabled = getEnvAsBool("TRIBUTE_ENABLED", true)
+	cfg.Payments.YooKassaEnabled = getEnvAsBool("YOOKASSA_ENABLED", true)
+	cfg.Payments.CryptoPayEnabled = getEnvAsBool("CRYPTOPAY_ENABLED", false)
+	
+	// Subscription Prices
+	cfg.Payments.Price1Month = getEnvAsInt("RUB_PRICE_1_MONTH", 150)
+	cfg.Payments.Price3Months = getEnvAsInt("RUB_PRICE_3_MONTHS", 300)
+	cfg.Payments.Price6Months = getEnvAsInt("RUB_PRICE_6_MONTHS", 500)
+	cfg.Payments.Price12Months = getEnvAsInt("RUB_PRICE_12_MONTHS", 900)
 
 	// Server
 	cfg.Server.Port = getEnvAsInt("SERVER_PORT", 8080)
@@ -152,6 +193,15 @@ func Load() (*Config, error) {
 	// Monitoring
 	cfg.Monitoring.HealthCheckInterval = getEnvAsDuration("HEALTH_CHECK_INTERVAL", "30s")
 	cfg.Monitoring.StatsCleanupInterval = getEnvAsDuration("STATS_CLEANUP_INTERVAL", "24h")
+
+	// Trial Settings
+	cfg.Trial.Enabled = getEnvAsBool("TRIAL_ENABLED", true)
+	cfg.Trial.DurationDays = getEnvAsInt("TRIAL_DURATION_DAYS", 5)
+	cfg.Trial.TrafficLimitGB = getEnvAsInt("TRIAL_TRAFFIC_LIMIT_GB", 0)
+	cfg.Trial.TrafficStrategy = getEnv("TRIAL_TRAFFIC_STRATEGY", "NO_RESET")
+
+	// Mini App
+	cfg.MiniApp.URL = getEnv("SUBSCRIPTION_MINI_APP_URL", "")
 
 	// Environment
 	cfg.Environment = getEnv("ENVIRONMENT", "development")
@@ -181,6 +231,9 @@ func (c *Config) Validate() error {
 	}
 	if c.Security.EncryptionKey == "" || len(c.Security.EncryptionKey) != 32 {
 		return fmt.Errorf("ENCRYPTION_KEY must be 32 characters long")
+	}
+	if c.MiniApp.URL == "" {
+		return fmt.Errorf("SUBSCRIPTION_MINI_APP_URL is required")
 	}
 	return nil
 }
