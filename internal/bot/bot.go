@@ -2,7 +2,6 @@ package bot
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
@@ -76,7 +75,7 @@ func (b *Bot) startWebhook() error {
 	}
 
 	if info.LastErrorDate != 0 {
-		b.logger.Error("Webhook error", "code", info.LastErrorCode, "message", info.LastErrorMessage)
+		b.logger.Error("Webhook error", "message", info.LastErrorMessage)
 	}
 
 	b.logger.Info("Bot started in webhook mode", "url", b.config.BotWebhookURL)
@@ -264,7 +263,9 @@ func (b *Bot) handleSubscriptionsCommand(message *tgbotapi.Message, user *models
 		text += "🛒 Купить подписку:"
 
 		keyboard := tgbotapi.NewInlineKeyboardMarkup(
-			tgbotapi.NewInlineKeyboardButtonData("🛒 Купить подписку", "buy_subscription"),
+			[]tgbotapi.InlineKeyboardButton{
+				tgbotapi.NewInlineKeyboardButtonData("🛒 Купить подписку", "buy_subscription"),
+			},
 		)
 
 		msg := tgbotapi.NewMessage(message.Chat.ID, text)
@@ -290,7 +291,9 @@ func (b *Bot) handleSubscriptionsCommand(message *tgbotapi.Message, user *models
 	}
 
 	keyboard := tgbotapi.NewInlineKeyboardMarkup(
-		tgbotapi.NewInlineKeyboardButtonData("🛒 Купить подписку", "buy_subscription"),
+		[]tgbotapi.InlineKeyboardButton{
+			tgbotapi.NewInlineKeyboardButtonData("🛒 Купить подписку", "buy_subscription"),
+		},
 	)
 
 	msg := tgbotapi.NewMessage(message.Chat.ID, text)
@@ -485,7 +488,9 @@ func (b *Bot) handleMySubscriptionsCallback(query *tgbotapi.CallbackQuery, user 
 		text += "🛒 Купить подписку:"
 
 		keyboard := tgbotapi.NewInlineKeyboardMarkup(
-			tgbotapi.NewInlineKeyboardButtonData("🛒 Купить подписку", "buy_subscription"),
+			[]tgbotapi.InlineKeyboardButton{
+				tgbotapi.NewInlineKeyboardButtonData("🛒 Купить подписку", "buy_subscription"),
+			},
 		)
 
 		b.editMessage(query.Message.Chat.ID, query.Message.MessageID, text, &keyboard)
@@ -510,7 +515,9 @@ func (b *Bot) handleMySubscriptionsCallback(query *tgbotapi.CallbackQuery, user 
 	}
 
 	keyboard := tgbotapi.NewInlineKeyboardMarkup(
-		tgbotapi.NewInlineKeyboardButtonData("🛒 Купить подписку", "buy_subscription"),
+		[]tgbotapi.InlineKeyboardButton{
+			tgbotapi.NewInlineKeyboardButtonData("🛒 Купить подписку", "buy_subscription"),
+		},
 	)
 
 	b.editMessage(query.Message.Chat.ID, query.Message.MessageID, text, &keyboard)
