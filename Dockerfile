@@ -20,8 +20,8 @@ COPY . .
 # Generate go.sum
 RUN go mod tidy
 
-# Copy env.example for final stage (if .env doesn't exist)
-COPY env.example /tmp/.env
+# Create empty .env file for final stage
+RUN echo "# Environment variables will be set via docker-compose" > /tmp/.env
 
 # Build the application
 ENV GOSUMDB=off
