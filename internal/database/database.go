@@ -10,7 +10,7 @@ import (
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
+	gormLogger "gorm.io/gorm/logger"
 )
 
 // Database представляет подключение к базе данных
@@ -33,14 +33,14 @@ func New(cfg *config.Config, log logger.Logger) (*Database, error) {
 	)
 
 	// Настраиваем GORM логгер
-	gormLogger := logger.Default.LogMode(logger.Silent)
+	gormLog := gormLogger.Default.LogMode(gormLogger.Silent)
 	if cfg.LogLevel == "debug" {
-		gormLogger = logger.Default.LogMode(logger.Info)
+		gormLog = gormLogger.Default.LogMode(gormLogger.Info)
 	}
 
 	// Подключаемся к базе данных
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
-		Logger: gormLogger,
+		Logger: gormLog,
 		NowFunc: func() time.Time {
 			return time.Now().UTC()
 		},

@@ -50,12 +50,10 @@ func (s *subscriptionService) CreateSubscription(userID uuid.UUID, serverID, pla
 	}
 
 	var planName string
-	var planPrice float64
 	var planDuration int
 	for _, plan := range plans {
 		if plan.ID == planID {
 			planName = plan.Name
-			planPrice = plan.Price
 			planDuration = plan.Duration
 			break
 		}
@@ -66,7 +64,7 @@ func (s *subscriptionService) CreateSubscription(userID uuid.UUID, serverID, pla
 	}
 
 	// Создаем подписку в Remnawave
-	remnawaveSub, err := s.remnawaveClient.CreateSubscription(0, serverID, planID) // userID будет 0, так как мы работаем с Telegram пользователями
+	_, err = s.remnawaveClient.CreateSubscription(0, serverID, planID) // userID будет 0, так как мы работаем с Telegram пользователями
 	if err != nil {
 		return nil, fmt.Errorf("failed to create subscription in Remnawave: %w", err)
 	}
