@@ -60,7 +60,7 @@ func (m *AuthMiddleware) getUserFromContext(c telebot.Context) *models.User {
 	// Получаем или создаем пользователя
 	user, err := m.userService.CreateOrGetUser(
 		from.ID,
-		from.UserName,
+		from.Username,
 		from.FirstName,
 		from.LastName,
 		from.LanguageCode,
