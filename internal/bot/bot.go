@@ -343,6 +343,11 @@ func (b *Bot) handleAdminCommand(message *tgbotapi.Message, user *models.User) {
 		"user_telegram_id", user.TelegramID, 
 		"user_id", user.ID,
 		"username", user.Username)
+	
+	// Добавляем отладку конфигурации
+	b.logger.Info("Config debug", 
+		"admin_telegram_id", b.config.Admin.TelegramID,
+		"admin_telegram_id_zero", b.config.Admin.TelegramID == 0)
 		
 	if !b.userService.IsAdmin(user.TelegramID) {
 		b.sendMessage(message.Chat.ID, "❌ У вас нет прав администратора.")
