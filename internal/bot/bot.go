@@ -143,26 +143,19 @@ func (b *Bot) handleCallbackQuery(query *tgbotapi.CallbackQuery) error {
 
 // getOrCreateUser получает или создает пользователя
 func (b *Bot) getOrCreateUser(from *tgbotapi.User) (*models.User, error) {
-	// Создаем пользователя из Telegram User
-	user := &models.User{
-		TelegramID: from.ID,
-		Username:   from.UserName,
-		FirstName:  from.FirstName,
-		LastName:   from.LastName,
-		LanguageCode: from.LanguageCode,
-	}
-	
-	// Получаем или создаем пользователя
-	existingUser, err := b.userService.GetUserByTelegramID(from.ID)
+	// Используем CreateOrGetUser для получения или создания пользователя
+	user, err := b.userService.CreateOrGetUser(
+		from.ID,
+		from.UserName,
+		from.FirstName,
+		from.LastName,
+		from.LanguageCode,
+	)
 	if err != nil {
-		// Пользователь не найден, создаем нового
-		if err := b.userService.CreateUser(user); err != nil {
-			return nil, fmt.Errorf("failed to create user: %w", err)
-		}
-		return user, nil
+		return nil, fmt.Errorf("failed to get or create user: %w", err)
 	}
 	
-	return existingUser, nil
+	return user, nil
 }
 
 // handleTextMessage обрабатывает обычные текстовые сообщения
@@ -194,29 +187,29 @@ func (b *Bot) handleCallbackQueryData(query *tgbotapi.CallbackQuery, user *model
 	// Обрабатываем различные типы callback'ов
 	switch {
 	case data == "balance":
-		return b.handleBalanceCallback(query, user)
+		return b.handleBalanceCallbackTgBot(query, user)
 	case data == "buy_subscription":
-		return b.handleBuySubscriptionCallback(query, user)
+		return b.handleBuySubscriptionCallbackTgBot(query, user)
 	case data == "my_subscriptions":
-		return b.handleMySubscriptionsCallback(query, user)
+		return b.handleMySubscriptionsCallbackTgBot(query, user)
 	case data == "referrals":
-		return b.handleReferralsCallback(query, user)
+		return b.handleReferralsCallbackTgBot(query, user)
 	case data == "promo_code":
-		return b.handlePromoCodeCallback(query, user)
+		return b.handlePromoCodeCallbackTgBot(query, user)
 	case data == "language":
-		return b.handleLanguageCallback(query, user)
+		return b.handleLanguageCallbackTgBot(query, user)
 	case data == "status":
-		return b.handleStatusCallback(query, user)
+		return b.handleStatusCallbackTgBot(query, user)
 	case data == "support":
-		return b.handleSupportCallback(query, user)
+		return b.handleSupportCallbackTgBot(query, user)
 	case data == "trial":
-		return b.handleTrialCallback(query, user)
+		return b.handleTrialCallbackTgBot(query, user)
 	case data == "start":
-		return b.handleStartCallback(query, user)
+		return b.handleStartCallbackTgBot(query, user)
 	case strings.HasPrefix(data, "tariff_"):
-		return b.handleTariffCallback(query, user)
+		return b.handleTariffCallbackTgBot(query, user)
 	case strings.HasPrefix(data, "payment_"):
-		return b.handlePaymentCallback(query, user)
+		return b.handlePaymentCallbackTgBot(query, user)
 	default:
 		b.logger.Info("Unknown callback data", "data", data)
 		return nil
@@ -260,7 +253,7 @@ func (b *Bot) setupHandlers() {
 	b.api.Handle("\fpayment_yookassa", func(c telebot.Context) error { return b.handlePaymentCallback(c, "payment_yookassa") })
 
 	// Text messages
-	b.api.Handle(telebot.OnText, b.handleTextMessage)
+	b.api.Handle(telebot.OnText, b.handleTextMessageTelebot)
 }
 
 // authMiddleware - middleware для аутентификации и логирования
@@ -644,8 +637,8 @@ func (b *Bot) handleAdminCommand(c telebot.Context) error {
 	return c.Send(text, menu)
 }
 
-// handleTextMessage обрабатывает текстовые сообщения
-func (b *Bot) handleTextMessage(c telebot.Context) error {
+// handleTextMessageTelebot обрабатывает текстовые сообщения
+func (b *Bot) handleTextMessageTelebot(c telebot.Context) error {
 	user := b.getUserFromContext(c)
 	if user == nil {
 		return c.Send("❌ Ошибка получения данных пользователя")
@@ -1027,4 +1020,90 @@ func (b *Bot) handlePaymentCallback(c telebot.Context, method string) error {
 	default:
 		return c.Respond(&telebot.CallbackResponse{Text: "❓ Неизвестный способ оплаты"})
 	}
+}
+
+// ===== Функции для tgbotapi =====
+
+// handleBalanceCallbackTgBot обрабатывает callback для баланса
+func (b *Bot) handleBalanceCallbackTgBot(query *tgbotapi.CallbackQuery, user *models.User) error {
+	// Пока что просто логируем
+	b.logger.Info("Handling balance callback", "user_id", user.ID)
+	return nil
+}
+
+// handleBuySubscriptionCallbackTgBot обрабатывает callback для покупки подписки
+func (b *Bot) handleBuySubscriptionCallbackTgBot(query *tgbotapi.CallbackQuery, user *models.User) error {
+	// Пока что просто логируем
+	b.logger.Info("Handling buy subscription callback", "user_id", user.ID)
+	return nil
+}
+
+// handleMySubscriptionsCallbackTgBot обрабатывает callback для моих подписок
+func (b *Bot) handleMySubscriptionsCallbackTgBot(query *tgbotapi.CallbackQuery, user *models.User) error {
+	// Пока что просто логируем
+	b.logger.Info("Handling my subscriptions callback", "user_id", user.ID)
+	return nil
+}
+
+// handleReferralsCallbackTgBot обрабатывает callback для рефералов
+func (b *Bot) handleReferralsCallbackTgBot(query *tgbotapi.CallbackQuery, user *models.User) error {
+	// Пока что просто логируем
+	b.logger.Info("Handling referrals callback", "user_id", user.ID)
+	return nil
+}
+
+// handlePromoCodeCallbackTgBot обрабатывает callback для промокода
+func (b *Bot) handlePromoCodeCallbackTgBot(query *tgbotapi.CallbackQuery, user *models.User) error {
+	// Пока что просто логируем
+	b.logger.Info("Handling promo code callback", "user_id", user.ID)
+	return nil
+}
+
+// handleLanguageCallbackTgBot обрабатывает callback для языка
+func (b *Bot) handleLanguageCallbackTgBot(query *tgbotapi.CallbackQuery, user *models.User) error {
+	// Пока что просто логируем
+	b.logger.Info("Handling language callback", "user_id", user.ID)
+	return nil
+}
+
+// handleStatusCallbackTgBot обрабатывает callback для статуса
+func (b *Bot) handleStatusCallbackTgBot(query *tgbotapi.CallbackQuery, user *models.User) error {
+	// Пока что просто логируем
+	b.logger.Info("Handling status callback", "user_id", user.ID)
+	return nil
+}
+
+// handleSupportCallbackTgBot обрабатывает callback для поддержки
+func (b *Bot) handleSupportCallbackTgBot(query *tgbotapi.CallbackQuery, user *models.User) error {
+	// Пока что просто логируем
+	b.logger.Info("Handling support callback", "user_id", user.ID)
+	return nil
+}
+
+// handleTrialCallbackTgBot обрабатывает callback для пробного периода
+func (b *Bot) handleTrialCallbackTgBot(query *tgbotapi.CallbackQuery, user *models.User) error {
+	// Пока что просто логируем
+	b.logger.Info("Handling trial callback", "user_id", user.ID)
+	return nil
+}
+
+// handleStartCallbackTgBot обрабатывает callback для главного меню
+func (b *Bot) handleStartCallbackTgBot(query *tgbotapi.CallbackQuery, user *models.User) error {
+	// Пока что просто логируем
+	b.logger.Info("Handling start callback", "user_id", user.ID)
+	return nil
+}
+
+// handleTariffCallbackTgBot обрабатывает callback для тарифов
+func (b *Bot) handleTariffCallbackTgBot(query *tgbotapi.CallbackQuery, user *models.User) error {
+	// Пока что просто логируем
+	b.logger.Info("Handling tariff callback", "user_id", user.ID, "data", query.Data)
+	return nil
+}
+
+// handlePaymentCallbackTgBot обрабатывает callback для платежей
+func (b *Bot) handlePaymentCallbackTgBot(query *tgbotapi.CallbackQuery, user *models.User) error {
+	// Пока что просто логируем
+	b.logger.Info("Handling payment callback", "user_id", user.ID, "data", query.Data)
+	return nil
 }
