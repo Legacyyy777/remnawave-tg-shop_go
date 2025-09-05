@@ -512,16 +512,16 @@ func (b *Bot) handleBalanceCallback(query *tgbotapi.CallbackQuery, user *models.
 	// Создаем кнопки оплаты на основе настроек
 	var paymentButtons []tgbotapi.InlineKeyboardButton
 	
-	if b.config.Payment.StarsEnabled {
+	if b.config.Payments.StarsEnabled {
 		paymentButtons = append(paymentButtons, tgbotapi.NewInlineKeyboardButtonData("⭐ Telegram Stars", "payment_stars"))
 	}
-	if b.config.Payment.TributeEnabled {
+	if b.config.Payments.TributeEnabled {
 		paymentButtons = append(paymentButtons, tgbotapi.NewInlineKeyboardButtonData("💎 Tribute", "payment_tribute"))
 	}
-	if b.config.Payment.YooKassaEnabled {
+	if b.config.Payments.YooKassaEnabled {
 		paymentButtons = append(paymentButtons, tgbotapi.NewInlineKeyboardButtonData("💳 ЮKassa", "payment_yookassa"))
 	}
-	if b.config.Payment.CryptoPayEnabled {
+	if b.config.Payments.CryptoPayEnabled {
 		paymentButtons = append(paymentButtons, tgbotapi.NewInlineKeyboardButtonData("₿ CryptoPay", "payment_cryptopay"))
 	}
 
@@ -593,13 +593,12 @@ func (b *Bot) handleBuySubscriptionCallback(query *tgbotapi.CallbackQuery, user 
 	b.answerCallbackQuery(query.ID, "🛒 Выберите тариф")
 }
 
-// handleMySubscriptionsCallback обрабатывает callback для моих подписок
+// handleMySubscriptionsCallback обрабатывает callback для моих подписки
 func (b *Bot) handleMySubscriptionsCallback(query *tgbotapi.CallbackQuery, user *models.User) {
-	// Открываем миниапп
-	webApp := tgbotapi.WebAppInfo{URL: b.config.MiniApp.URL}
+	// Создаем кнопку с URL для миниаппа
 	keyboard := tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonWebApp("🔒 Моя подписка", webApp),
+			tgbotapi.NewInlineKeyboardButtonURL("🔒 Моя подписка", b.config.MiniApp.URL),
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("🔙 Назад", "start"),
