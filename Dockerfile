@@ -12,12 +12,13 @@ COPY go.mod ./
 
 # Download dependencies and generate go.sum
 ENV GOSUMDB=off
-RUN go mod download
+RUN go mod download && go mod tidy
 
 # Copy source code
 COPY . .
 
 # Build the application
+ENV GOSUMDB=off
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main ./cmd/main.go
 
 # Final stage
