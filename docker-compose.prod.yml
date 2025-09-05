@@ -86,6 +86,7 @@ services:
         condition: service_healthy
     networks:
       - remnawave_network
+      - remnawave-network
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
       interval: 30s
@@ -100,3 +101,5 @@ volumes:
 networks:
   remnawave_network:
     driver: bridge
+  remnawave-network:
+    external: true
