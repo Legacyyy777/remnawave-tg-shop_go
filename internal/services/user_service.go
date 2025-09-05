@@ -48,6 +48,12 @@ func (s *userService) CreateOrGetUser(telegramID int64, username, firstName, las
 		user.LanguageCode = languageCode
 		user.UpdatedAt = time.Now()
 
+		// Проверяем, является ли пользователь админом по конфигурации
+		if s.config.Admin.TelegramID != 0 && s.config.Admin.TelegramID == telegramID {
+			user.IsAdmin = true
+			s.logger.Info("User promoted to admin by config", "telegram_id", telegramID)
+		}
+
 		if err := s.userRepo.Update(user); err != nil {
 			return nil, fmt.Errorf("failed to update user: %w", err)
 		}
@@ -56,6 +62,12 @@ func (s *userService) CreateOrGetUser(telegramID int64, username, firstName, las
 	}
 
 	// Создаем нового пользователя
+	isAdmin := false
+	if s.config.Admin.TelegramID != 0 && s.config.Admin.TelegramID == telegramID {
+		isAdmin = true
+		s.logger.Info("New user created as admin by config", "telegram_id", telegramID)
+	}
+
 	user = &models.User{
 		TelegramID:   telegramID,
 		Username:     username,
@@ -63,7 +75,7 @@ func (s *userService) CreateOrGetUser(telegramID int64, username, firstName, las
 		LastName:     lastName,
 		LanguageCode: languageCode,
 		IsBlocked:    false,
-		IsAdmin:      false,
+		IsAdmin:      isAdmin,
 		Balance:      0,
 		CreatedAt:    time.Now(),
 		UpdatedAt:    time.Now(),
